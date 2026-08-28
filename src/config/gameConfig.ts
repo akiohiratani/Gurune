@@ -1,5 +1,5 @@
 export const gameConfig = {
-  defaultHitProbability: 1 / 12,
+  defaultHitProbability: 0.5,
   initialCount: 3,
   countdownIntervalMs: 1000,
   resultPresentationMs: 5000,

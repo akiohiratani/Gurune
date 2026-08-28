@@ -2,6 +2,71 @@
   min-height: 100vh;
 }
 
+.settings-modal-backdrop {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(9, 10, 8, 0.78);
+  backdrop-filter: blur(8px);
+  animation: win-overlay-in 240ms ease-out both;
+}
+
+.settings-modal {
+  width: min(100%, 520px);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  padding: clamp(28px, 5vw, 48px);
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  box-shadow: 10px 10px 0 var(--acid);
+}
+
+.settings-modal h2 {
+  margin: 0;
+  font-size: clamp(30px, 6vw, 46px);
+  line-height: 1.1;
+}
+
+.settings-modal-description {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.continuation-rate {
+  margin-top: 26px;
+  padding: 20px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 8px 16px;
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.continuation-rate > span {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.continuation-rate strong {
+  color: var(--acid);
+  font: 900 clamp(34px, 8vw, 56px)/0.9 'Arial Narrow', sans-serif;
+}
+
+.continuation-rate small {
+  grid-column: 1 / -1;
+  color: #a9aa9f;
+  font-size: 11px;
+}
+
+.settings-modal-start {
+  margin-top: 28px;
+}
+
 .win-pattern-overlay {
   /* position: fixedとinset: 0で、抽選画面全体を覆う演出レイヤーにします。 */
   position: fixed;
@@ -124,7 +189,7 @@
 .game-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto 1fr;
   background-color: var(--paper);
   background-image:
@@ -192,14 +257,12 @@
   justify-content: center;
 }
 
-.stage-heading,
 .panel-heading {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
 }
 
-.stage-heading h2,
 .panel-heading h2 {
   margin: 0;
   font-size: 24px;
@@ -207,17 +270,9 @@
   letter-spacing: 0;
 }
 
-.running-win-count {
-  margin: 0;
-  padding: 8px 12px;
-  background: var(--ink);
-  color: var(--acid);
-  font-weight: 800;
-}
-
 .countdown-display {
   min-height: 360px;
-  margin-top: 34px;
+  margin-top: 0;
   display: grid;
   place-items: center;
   overflow: visible;
@@ -245,14 +300,6 @@
     transform: scale(2);
     opacity: 1;
   }
-}
-
-.control-panel {
-  padding: 52px 34px 38px;
-  display: flex;
-  flex-direction: column;
-  background: #f0efe5;
-  border-left: 1px solid var(--line);
 }
 
 .panel-heading {
@@ -347,22 +394,6 @@
 .field-message--error {
   color: #c7371a;
   font-weight: 700;
-}
-
-.locked-setting {
-  margin-top: 25px;
-  padding: 17px 0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-top: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.locked-setting strong {
-  color: var(--ink);
-  font-size: 14px;
 }
 
 .primary-action,
@@ -496,19 +527,11 @@
 
 @media (max-width: 900px) {
   .game-shell {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto;
+    grid-template-rows: auto 1fr;
   }
 
   .game-stage {
     padding: 38px 24px;
-  }
-
-  .control-panel {
-    min-height: 420px;
-    padding: 36px 24px 30px;
-    border-top: 1px solid var(--line);
-    border-left: 0;
   }
 
   .primary-action,

@@ -2,12 +2,12 @@ import type { WinRecord } from '../../../domain/game/Game'
 
 type ResultScreenProps = {
   records: WinRecord[]
-  onReset: () => void
+  onReplay: () => void
 }
 
 const patternNumbers = [1, 2, 3, 4, 5, 6]
 
-export function ResultScreen({ records, onReset }: ResultScreenProps) {
+export function ResultScreen({ records, onReplay }: ResultScreenProps) {
   return (
     <section className="result-screen" aria-labelledby="result-title">
       <div className="result-heading">
@@ -43,8 +43,8 @@ export function ResultScreen({ records, onReset }: ResultScreenProps) {
       </div>
 
       <p className="result-total">TOTAL WINS <strong>{records.length}</strong></p>
-      <button type="button" className="primary-action result-reset" onClick={onReset}>
-        <span>もう一度抽選する</span>
+      <button type="button" className="primary-action result-reset" onClick={onReplay}>
+        <span>もう一度プレイ</span>
         <span aria-hidden="true">→</span>
       </button>
     </section>

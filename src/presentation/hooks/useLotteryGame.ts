@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { LotteryFactory } from '../../application/ports/LotteryFactory'
 import type { WinPatternSelector } from '../../application/ports/WinPatternSelector'
-import { probabilityToPercent } from '../../application/probabilityPercent'
+import { calculateContinuationRate } from '../../application/continuationRate'
+import { parseProbabilityPercent, probabilityToPercent } from '../../application/probabilityPercent'
 import { DrawHoldUseCase } from '../../application/usecases/DrawHoldUseCase'
 import { SelectWinPatternUseCase } from '../../application/usecases/SelectWinPatternUseCase'
 import { StartGameUseCase } from '../../application/usecases/StartGameUseCase'
@@ -28,7 +29,6 @@ export function useLotteryGame(lotteryFactory: LotteryFactory, winPatternSelecto
   const [error, setError] = useState<string | null>(null)
   const [holds, setHolds] = useState<Hold[]>(createHolds)
   const [currentIndex, setCurrentIndex] = useState(-1)
-  const [lockedProbability, setLockedProbability] = useState<number | null>(null)
   const [presentationPath, setPresentationPath] = useState<string | null>(null)
   const [presentationResult, setPresentationResult] = useState<'hit' | 'miss' | null>(null)
   const [winRecords, setWinRecords] = useState<WinRecord[]>([])
@@ -40,6 +40,14 @@ export function useLotteryGame(lotteryFactory: LotteryFactory, winPatternSelecto
     () => new SelectWinPatternUseCase(winPatternSelector),
     [winPatternSelector],
   )
+  const probabilityValidation = useMemo(
+    () => parseProbabilityPercent(probabilityPercent),
+    [probabilityPercent],
+  )
+  const continuationRate = useMemo(
+    () => calculateContinuationRate(probabilityPercent, gameConfig.initialCount),
+    [probabilityPercent],
+  )
 
   const start = useCallback(() => {
     if (status !== 'idle') return
@@ -50,7 +58,6 @@ export function useLotteryGame(lotteryFactory: LotteryFactory, winPatternSelecto
     }
 
     sessionRef.current = result.session
-    setLockedProbability(result.session.settings.hitProbability)
     setError(null)
     setPresentationPath(null)
     setPresentationResult(null)
@@ -66,7 +73,6 @@ export function useLotteryGame(lotteryFactory: LotteryFactory, winPatternSelecto
     setError(null)
     setHolds(createHolds())
     setCurrentIndex(-1)
-    setLockedProbability(null)
     setPresentationPath(null)
     setPresentationResult(null)
     setWinRecords([])
@@ -141,10 +147,11 @@ export function useLotteryGame(lotteryFactory: LotteryFactory, winPatternSelecto
     error,
     holds,
     currentIndex,
-    lockedProbability,
     presentationPath,
     presentationResult,
     winRecords,
+    canStart: status === 'idle' && probabilityValidation.valid,
+    continuationRatePercent: continuationRate.valid ? continuationRate.percent : null,
     updateProbability,
     start,
     reset,
