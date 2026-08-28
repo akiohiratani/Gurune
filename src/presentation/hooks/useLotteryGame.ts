@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { GameAudioService } from '../../application/audio/GameAudioService'
+import type { AudioPlayback } from '../../application/ports/AudioPlayer'
 import type { LotteryFactory } from '../../application/ports/LotteryFactory'
 import type { WinPatternSelector } from '../../application/ports/WinPatternSelector'
 import { calculateContinuationRate } from '../../application/continuationRate'
@@ -21,7 +23,11 @@ function getPatternNumber(imagePath: string): number {
   return match ? Number(match[1]) : 0
 }
 
-export function useLotteryGame(lotteryFactory: LotteryFactory, winPatternSelector: WinPatternSelector) {
+export function useLotteryGame(
+  lotteryFactory: LotteryFactory,
+  winPatternSelector: WinPatternSelector,
+  gameAudio: GameAudioService,
+) {
   const [status, setStatus] = useState<GameStatus>('idle')
   const [probabilityPercent, setProbabilityPercent] = useState(() =>
     probabilityToPercent(gameConfig.defaultHitProbability),
@@ -29,10 +35,12 @@ export function useLotteryGame(lotteryFactory: LotteryFactory, winPatternSelecto
   const [error, setError] = useState<string | null>(null)
   const [holds, setHolds] = useState<Hold[]>(createHolds)
   const [currentIndex, setCurrentIndex] = useState(-1)
+  const [countdownVisibleIndex, setCountdownVisibleIndex] = useState(-1)
   const [presentationPath, setPresentationPath] = useState<string | null>(null)
   const [presentationResult, setPresentationResult] = useState<'hit' | 'miss' | null>(null)
   const [winRecords, setWinRecords] = useState<WinRecord[]>([])
   const sessionRef = useRef<GameSession | null>(null)
+  const startingRef = useRef(false)
 
   const startGame = useMemo(() => new StartGameUseCase(lotteryFactory), [lotteryFactory])
   const drawHold = useMemo(() => new DrawHoldUseCase(), [])
@@ -49,39 +57,80 @@ export function useLotteryGame(lotteryFactory: LotteryFactory, winPatternSelecto
     [probabilityPercent],
   )
 
-  const start = useCallback(() => {
-    if (status !== 'idle') return
+  useEffect(() => {
+    void gameAudio.preload().catch(() => {
+      // Start will surface a retryable error if preloading is still unsuccessful.
+    })
+
+    return () => gameAudio.reset()
+  }, [gameAudio])
+
+  const start = useCallback(async () => {
+    if (status !== 'idle' || startingRef.current) return
     const result = startGame.execute(probabilityPercent)
     if (!result.ok) {
       setError(result.message)
       return
     }
 
-    sessionRef.current = result.session
+    startingRef.current = true
     setError(null)
+    try {
+      // This begins synchronously in the click event, which is required by Safari/iOS.
+      await gameAudio.enable()
+    } catch (audioError) {
+      console.error('[Game] Audio initialization failed.', audioError)
+      setError('音声を準備できませんでした。もう一度「ゲーム開始」を押してください。')
+      startingRef.current = false
+      return
+    }
+
+    sessionRef.current = result.session
+    gameAudio.beginCountdownSequence()
     setPresentationPath(null)
     setPresentationResult(null)
     setWinRecords([])
     setHolds(createHolds())
+    setCountdownVisibleIndex(-1)
     setCurrentIndex(0)
     setStatus('running')
-  }, [probabilityPercent, startGame, status])
+    startingRef.current = false
+  }, [gameAudio, probabilityPercent, startGame, status])
 
   const reset = useCallback(() => {
+    gameAudio.reset()
+    startingRef.current = false
     sessionRef.current = null
     setStatus('idle')
     setError(null)
     setHolds(createHolds())
     setCurrentIndex(-1)
+    setCountdownVisibleIndex(-1)
     setPresentationPath(null)
     setPresentationResult(null)
     setWinRecords([])
-  }, [])
+  }, [gameAudio])
 
   useEffect(() => {
     if (status !== 'running' || currentIndex < 0) return
 
-    const timer = window.setTimeout(() => {
+    let cancelled = false
+    const runDraw = async () => {
+      const remainingDraws = holds.length - currentIndex
+      let playback: AudioPlayback | null = null
+      try {
+        playback = await gameAudio.playCountdown(remainingDraws)
+      } catch (audioError) {
+        // Do not leave the game stuck if playback fails after a successful unlock.
+        console.error('[Game] Countdown audio playback failed.', audioError)
+      }
+      if (cancelled) return
+
+      // Keep the visual countdown visible for the actual duration of the voice file.
+      setCountdownVisibleIndex(currentIndex)
+      if (playback) await playback.ended
+      if (cancelled) return
+
       const session = sessionRef.current
       const hold = holds[currentIndex]
       if (!session || !hold) return
@@ -94,6 +143,7 @@ export function useLotteryGame(lotteryFactory: LotteryFactory, winPatternSelecto
       )
 
       if (hit) {
+        gameAudio.stopCountdown()
         const imagePath = selectWinPattern.execute()
         setWinRecords((records) => [
           ...records,
@@ -101,20 +151,27 @@ export function useLotteryGame(lotteryFactory: LotteryFactory, winPatternSelecto
         ])
         setPresentationPath(imagePath)
         setPresentationResult('hit')
+        setCountdownVisibleIndex(-1)
         setCurrentIndex(-1)
         setStatus('celebrating')
       } else if (currentIndex === holds.length - 1) {
         setPresentationPath('/pattern/win/0.png')
         setPresentationResult('miss')
+        setCountdownVisibleIndex(-1)
         setCurrentIndex(-1)
         setStatus('celebrating')
       } else {
+        setCountdownVisibleIndex(-1)
         setCurrentIndex((index) => index + 1)
       }
-    }, gameConfig.countdownIntervalMs)
+    }
 
-    return () => window.clearTimeout(timer)
-  }, [currentIndex, drawHold, holds, selectWinPattern, status])
+    void runDraw()
+
+    return () => {
+      cancelled = true
+    }
+  }, [currentIndex, drawHold, gameAudio, holds, selectWinPattern, status])
 
   useEffect(() => {
     if (status !== 'celebrating' || !presentationResult) return
@@ -122,8 +179,10 @@ export function useLotteryGame(lotteryFactory: LotteryFactory, winPatternSelecto
     const timer = window.setTimeout(() => {
       setPresentationPath(null)
       if (presentationResult === 'hit') {
+        gameAudio.beginCountdownSequence()
         setPresentationResult(null)
         setHolds(createHolds())
+        setCountdownVisibleIndex(-1)
         setCurrentIndex(0)
         setStatus('running')
       } else {
@@ -133,7 +192,7 @@ export function useLotteryGame(lotteryFactory: LotteryFactory, winPatternSelecto
     }, gameConfig.resultPresentationMs)
 
     return () => window.clearTimeout(timer)
-  }, [presentationResult, status])
+  }, [gameAudio, presentationResult, status])
 
   const updateProbability = useCallback((value: string) => {
     if (status !== 'idle') return
@@ -147,6 +206,7 @@ export function useLotteryGame(lotteryFactory: LotteryFactory, winPatternSelecto
     error,
     holds,
     currentIndex,
+    isCountdownVisible: countdownVisibleIndex === currentIndex,
     presentationPath,
     presentationResult,
     winRecords,

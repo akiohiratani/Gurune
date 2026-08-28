@@ -1,4 +1,6 @@
 import { useMemo } from 'react'
+import { GameAudioService } from './application/audio/GameAudioService'
+import { BrowserAudioPlayer } from './infrastructure/audio/BrowserAudioPlayer'
 import { RandomLotteryFactory } from './infrastructure/lottery/RandomLotteryFactory'
 import { RandomWinPatternSelector } from './infrastructure/lottery/RandomWinPatternSelector'
 import { GameSettingsModal } from './presentation/components/GameSettingsModal/GameSettingsModal'
@@ -10,9 +12,10 @@ import './App.css'
 function App() {
   const lotteryFactory = useMemo(() => new RandomLotteryFactory(), [])
   const winPatternSelector = useMemo(() => new RandomWinPatternSelector(), [])
-  const game = useLotteryGame(lotteryFactory, winPatternSelector)
+  const gameAudio = useMemo(() => new GameAudioService(new BrowserAudioPlayer()), [])
+  const game = useLotteryGame(lotteryFactory, winPatternSelector, gameAudio)
   const isIdle = game.status === 'idle'
-  const countdownImagePath = game.currentIndex >= 0
+  const countdownImagePath = game.isCountdownVisible && game.currentIndex >= 0
     ? `/count/img/${game.holds.length - game.currentIndex}.png`
     : null
 
