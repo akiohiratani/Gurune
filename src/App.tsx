@@ -1,14 +1,18 @@
 import { useMemo } from 'react'
 import { parseProbabilityPercent } from './application/probabilityPercent'
 import { RandomLotteryFactory } from './infrastructure/lottery/RandomLotteryFactory'
+import { RandomWinPatternSelector } from './infrastructure/lottery/RandomWinPatternSelector'
 import { HoldList } from './presentation/components/HoldList/HoldList'
 import { ProbabilitySetting } from './presentation/components/ProbabilitySetting/ProbabilitySetting'
+import { WinPatternOverlay } from './presentation/components/WinPatternOverlay/WinPatternOverlay'
 import { useLotteryGame } from './presentation/hooks/useLotteryGame'
 import './App.css'
 
 function App() {
   const lotteryFactory = useMemo(() => new RandomLotteryFactory(), [])
-  const game = useLotteryGame(lotteryFactory)
+  // インフラ層の実装をここで生成し、フックへアプリケーションのポートとして渡します。
+  const winPatternSelector = useMemo(() => new RandomWinPatternSelector(), [])
+  const game = useLotteryGame(lotteryFactory, winPatternSelector)
   const isIdle = game.status === 'idle'
   const canStart = isIdle && parseProbabilityPercent(game.probabilityPercent).valid
   const hitCount = game.holds.filter((hold) => hold.result === 'hit').length
@@ -16,6 +20,10 @@ function App() {
 
   return (
     <main className="game-shell">
+      {/* 当選時だけ表示し、ゲーム画面全体を演出レイヤーで覆います。 */}
+      {game.winPatternPath && (
+        <WinPatternOverlay imagePath={game.winPatternPath} onReset={game.reset} />
+      )}
       <header className="game-header">
         <div>
           <p className="eyebrow">THREE DRAW / LIVE LOTTERY</p>

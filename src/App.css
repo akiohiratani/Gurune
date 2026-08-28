@@ -2,6 +2,104 @@
   min-height: 100vh;
 }
 
+.win-pattern-overlay {
+  /* position: fixedとinset: 0で、抽選画面全体を覆う演出レイヤーにします。 */
+  position: fixed;
+  z-index: 10;
+  inset: 0;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: #090a08;
+  animation: win-overlay-in 780ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.win-pattern-image {
+  /* 画面より少し大きく配置し、拡大縮小中に背景の端が見えないようにします。 */
+  position: absolute;
+  inset: -8%;
+  width: 116%;
+  height: 116%;
+  object-fit: cover;
+  animation:
+    /* 最初は小さく奥から飛び出し、その後に微細な揺れへ切り替えます。 */
+    win-pattern-burst 900ms cubic-bezier(0.16, 1, 0.3, 1) both,
+    win-pattern-sway 0.4s 900ms ease-in-out infinite;
+}
+
+.win-pattern-flash {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  animation: win-flash 900ms ease-out both;
+}
+
+.win-pattern-label {
+  position: relative;
+  z-index: 2;
+  margin: 0;
+  color: #fff;
+  font: 900 clamp(52px, 13vw, 180px)/1 'Arial Narrow', sans-serif;
+  letter-spacing: 0;
+  text-shadow: 0 5px 0 #171914, 0 0 34px var(--acid);
+  animation: win-label-slam 700ms 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.win-pattern-reset {
+  position: absolute;
+  z-index: 3;
+  right: 28px;
+  bottom: 28px;
+  min-width: 112px;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 2px solid #fff;
+  background: var(--acid);
+  color: var(--ink);
+  font: 800 14px/1 'Arial Narrow', sans-serif;
+  letter-spacing: 1px;
+  box-shadow: 4px 4px 0 #fff;
+}
+
+.win-pattern-reset:hover,
+.win-pattern-reset:focus-visible {
+  background: #fff;
+  color: var(--ink);
+}
+
+@keyframes win-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes win-pattern-burst {
+  /* 画像を小さく始め、少し行き過ぎてから定位置へ戻すことで勢いを出します。 */
+  from { transform: scale(0.08) rotate(-8deg); filter: brightness(2.2) saturate(1.4); }
+  58% { transform: scale(1.08) rotate(1deg); filter: brightness(1.15) saturate(1.15); }
+  to { transform: scale(1) rotate(0); filter: brightness(1) saturate(1); }
+}
+
+@keyframes win-pattern-sway {
+  /* 当選後も上下左右へ数pxだけ移動させ、躍動感を保ち続けます。 */
+  0%, 100% { transform: scale(1) translate(0, 0); }
+  25% { transform: scale(1) translate(2px, -3px); }
+  50% { transform: scale(1) translate(-2px, 2px); }
+  75% { transform: scale(1) translate(3px, 1px); }
+}
+
+@keyframes win-flash {
+  0%, 14% { opacity: 0.9; }
+  38%, 100% { opacity: 0; }
+}
+
+@keyframes win-label-slam {
+  from { opacity: 0; transform: scale(2.8) rotate(-7deg); }
+  70% { opacity: 1; transform: scale(0.94) rotate(1deg); }
+  to { opacity: 1; transform: scale(1) rotate(0); }
+}
+
 .game-shell {
   min-height: 100vh;
   display: grid;
