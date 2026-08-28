@@ -3,13 +3,13 @@ import { parseProbabilityPercent } from './application/probabilityPercent'
 import { RandomLotteryFactory } from './infrastructure/lottery/RandomLotteryFactory'
 import { RandomWinPatternSelector } from './infrastructure/lottery/RandomWinPatternSelector'
 import { ProbabilitySetting } from './presentation/components/ProbabilitySetting/ProbabilitySetting'
+import { ResultScreen } from './presentation/components/ResultScreen/ResultScreen'
 import { WinPatternOverlay } from './presentation/components/WinPatternOverlay/WinPatternOverlay'
 import { useLotteryGame } from './presentation/hooks/useLotteryGame'
 import './App.css'
 
 function App() {
   const lotteryFactory = useMemo(() => new RandomLotteryFactory(), [])
-  // インフラ層の実装をここで生成し、フックへアプリケーションのポートとして渡します。
   const winPatternSelector = useMemo(() => new RandomWinPatternSelector(), [])
   const game = useLotteryGame(lotteryFactory, winPatternSelector)
   const isIdle = game.status === 'idle'
@@ -18,12 +18,16 @@ function App() {
     ? `/count/img/${game.holds.length - game.currentIndex}.png`
     : null
 
+  if (game.status === 'finished') {
+    return <ResultScreen records={game.winRecords} onReset={game.reset} />
+  }
+
   return (
     <main className="game-shell">
-      {/* 当選時だけ表示し、ゲーム画面全体を演出レイヤーで覆います。 */}
-      {game.winPatternPath && (
-        <WinPatternOverlay imagePath={game.winPatternPath} onReset={game.reset} />
+      {game.presentationPath && game.presentationResult && (
+        <WinPatternOverlay imagePath={game.presentationPath} result={game.presentationResult} />
       )}
+
       <header className="game-header">
         <div>
           <p className="eyebrow">THREE DRAW / LIVE LOTTERY</p>
@@ -31,7 +35,7 @@ function App() {
         </div>
         <div className={`status-badge status-badge--${game.status}`}>
           <span className="status-dot" aria-hidden="true" />
-          {game.status === 'idle' ? 'READY' : game.status === 'running' ? 'DRAWING' : 'COMPLETE'}
+          {isIdle ? 'READY' : game.status === 'running' ? 'DRAWING' : 'WIN'}
         </div>
       </header>
 
@@ -39,17 +43,18 @@ function App() {
         <div className="stage-heading">
           <div>
             <p className="section-index">01 / DRAW</p>
-            <h2>抽選中</h2>
+            <h2>{isIdle ? '抽選待機中' : '抽選中'}</h2>
           </div>
+          {!isIdle && <p className="running-win-count">WIN {game.winRecords.length}</p>}
         </div>
 
         <div className="countdown-display" aria-live="polite" aria-label="抽選カウントダウン">
           {countdownImagePath && (
             <img
-              key={countdownImagePath}
+              key={`${countdownImagePath}-${game.winRecords.length}`}
               className="countdown-image"
               src={countdownImagePath}
-              alt={`${game.holds.length - game.currentIndex}番目の抽選`}
+              alt={`残り保留 ${game.holds.length - game.currentIndex}`}
             />
           )}
         </div>

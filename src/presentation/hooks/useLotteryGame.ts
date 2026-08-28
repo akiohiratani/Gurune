@@ -6,7 +6,7 @@ import { DrawHoldUseCase } from '../../application/usecases/DrawHoldUseCase'
 import { SelectWinPatternUseCase } from '../../application/usecases/SelectWinPatternUseCase'
 import { StartGameUseCase } from '../../application/usecases/StartGameUseCase'
 import { gameConfig } from '../../config/gameConfig'
-import type { GameSession, GameStatus, Hold } from '../../domain/game/Game'
+import type { GameSession, GameStatus, Hold, WinRecord } from '../../domain/game/Game'
 
 function createHolds(): Hold[] {
   return Array.from({ length: gameConfig.initialCount }, (_, index) => ({
@@ -15,7 +15,11 @@ function createHolds(): Hold[] {
   }))
 }
 
-// 抽選進行と当選演出の状態をまとめて管理し、画面には表示に必要な値だけを返します。
+function getPatternNumber(imagePath: string): number {
+  const match = imagePath.match(/\/(\d+)\.png$/)
+  return match ? Number(match[1]) : 0
+}
+
 export function useLotteryGame(lotteryFactory: LotteryFactory, winPatternSelector: WinPatternSelector) {
   const [status, setStatus] = useState<GameStatus>('idle')
   const [probabilityPercent, setProbabilityPercent] = useState(() =>
@@ -25,8 +29,9 @@ export function useLotteryGame(lotteryFactory: LotteryFactory, winPatternSelecto
   const [holds, setHolds] = useState<Hold[]>(createHolds)
   const [currentIndex, setCurrentIndex] = useState(-1)
   const [lockedProbability, setLockedProbability] = useState<number | null>(null)
-  // nullは通常画面、文字列は当選演出に使用する画像パスを表します。
-  const [winPatternPath, setWinPatternPath] = useState<string | null>(null)
+  const [presentationPath, setPresentationPath] = useState<string | null>(null)
+  const [presentationResult, setPresentationResult] = useState<'hit' | 'miss' | null>(null)
+  const [winRecords, setWinRecords] = useState<WinRecord[]>([])
   const sessionRef = useRef<GameSession | null>(null)
 
   const startGame = useMemo(() => new StartGameUseCase(lotteryFactory), [lotteryFactory])
@@ -47,8 +52,9 @@ export function useLotteryGame(lotteryFactory: LotteryFactory, winPatternSelecto
     sessionRef.current = result.session
     setLockedProbability(result.session.settings.hitProbability)
     setError(null)
-    // 前回の当選演出を消してから、新しい抽選を開始します。
-    setWinPatternPath(null)
+    setPresentationPath(null)
+    setPresentationResult(null)
+    setWinRecords([])
     setHolds(createHolds())
     setCurrentIndex(0)
     setStatus('running')
@@ -61,8 +67,9 @@ export function useLotteryGame(lotteryFactory: LotteryFactory, winPatternSelecto
     setHolds(createHolds())
     setCurrentIndex(-1)
     setLockedProbability(null)
-    // オーバーレイからリセットされた場合も通常画面へ戻します。
-    setWinPatternPath(null)
+    setPresentationPath(null)
+    setPresentationResult(null)
+    setWinRecords([])
   }, [])
 
   useEffect(() => {
@@ -80,11 +87,21 @@ export function useLotteryGame(lotteryFactory: LotteryFactory, winPatternSelecto
         ),
       )
 
-      if (hit || currentIndex === holds.length - 1) {
-        // いずれかの保留が当選した時点で、候補画像を一度だけ選びます。
-        if (hit) setWinPatternPath(selectWinPattern.execute())
+      if (hit) {
+        const imagePath = selectWinPattern.execute()
+        setWinRecords((records) => [
+          ...records,
+          { patternNumber: getPatternNumber(imagePath), holdNumber: currentIndex + 1 },
+        ])
+        setPresentationPath(imagePath)
+        setPresentationResult('hit')
         setCurrentIndex(-1)
-        setStatus('finished')
+        setStatus('celebrating')
+      } else if (currentIndex === holds.length - 1) {
+        setPresentationPath('/pattern/win/0.png')
+        setPresentationResult('miss')
+        setCurrentIndex(-1)
+        setStatus('celebrating')
       } else {
         setCurrentIndex((index) => index + 1)
       }
@@ -92,6 +109,25 @@ export function useLotteryGame(lotteryFactory: LotteryFactory, winPatternSelecto
 
     return () => window.clearTimeout(timer)
   }, [currentIndex, drawHold, holds, selectWinPattern, status])
+
+  useEffect(() => {
+    if (status !== 'celebrating' || !presentationResult) return
+
+    const timer = window.setTimeout(() => {
+      setPresentationPath(null)
+      if (presentationResult === 'hit') {
+        setPresentationResult(null)
+        setHolds(createHolds())
+        setCurrentIndex(0)
+        setStatus('running')
+      } else {
+        setPresentationResult(null)
+        setStatus('finished')
+      }
+    }, gameConfig.resultPresentationMs)
+
+    return () => window.clearTimeout(timer)
+  }, [presentationResult, status])
 
   const updateProbability = useCallback((value: string) => {
     if (status !== 'idle') return
@@ -106,7 +142,9 @@ export function useLotteryGame(lotteryFactory: LotteryFactory, winPatternSelecto
     holds,
     currentIndex,
     lockedProbability,
-    winPatternPath,
+    presentationPath,
+    presentationResult,
+    winRecords,
     updateProbability,
     start,
     reset,

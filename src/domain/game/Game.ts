@@ -10,10 +10,15 @@ export type GameSession = {
   lottery: Lottery
 }
 
-export type GameStatus = 'idle' | 'running' | 'finished'
+export type GameStatus = 'idle' | 'running' | 'celebrating' | 'finished'
 export type HoldResult = 'pending' | 'hit' | 'miss'
 
 export type Hold = {
   id: string
   result: HoldResult
+}
+
+export type WinRecord = {
+  patternNumber: number
+  holdNumber: number
 }
