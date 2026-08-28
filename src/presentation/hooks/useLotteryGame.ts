@@ -64,7 +64,10 @@ export function useLotteryGame(
       // Start will surface a retryable error if preloading is still unsuccessful.
     })
 
-    return () => gameAudio.reset()
+    return () => {
+      gameAudio.reset()
+      gameAudio.stopBgm()
+    }
   }, [gameAudio])
 
   const start = useCallback(async () => {
@@ -80,6 +83,7 @@ export function useLotteryGame(
     try {
       // This begins synchronously in the click event, which is required by Safari/iOS.
       await gameAudio.enable()
+      await gameAudio.playBgm()
     } catch (audioError) {
       console.error('[Game] Audio initialization failed.', audioError)
       setError('音声を準備できませんでした。もう一度「ゲーム開始」を押してください。')

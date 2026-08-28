@@ -1,5 +1,5 @@
 import type { AudioPlayback, AudioPlayer } from '../ports/AudioPlayer'
-import { gameAudioSources, winVoiceSource } from './gameAudioSources'
+import { bgmSource, gameAudioSources, winVoiceSource } from './gameAudioSources'
 
 const VOICE_VARIATION_COUNT = 3
 
@@ -10,6 +10,7 @@ export class GameAudioService {
   private countdownVariation: number | null = null
   private currentCountdownSource: string | null = null
   private isWinVoicePlaying = false
+  private bgmStartPromise: Promise<void> | null = null
 
   constructor(
     audioPlayer: AudioPlayer,
@@ -32,6 +33,27 @@ export class GameAudioService {
     // enable() is intentionally invoked first so resume happens in the user gesture.
     const enablePromise = this.audioPlayer.enable()
     await Promise.all([enablePromise, this.preload()])
+  }
+
+  async playBgm(): Promise<void> {
+    if (this.audioPlayer.isPlaying(bgmSource)) return
+    if (this.bgmStartPromise) return this.bgmStartPromise
+
+    this.bgmStartPromise = this.audioPlayer
+      .play(bgmSource, { loop: true })
+      .then(() => undefined)
+      .finally(() => {
+        this.bgmStartPromise = null
+      })
+    return this.bgmStartPromise
+  }
+
+  stopBgm(): void {
+    this.audioPlayer.stop(bgmSource)
+  }
+
+  isBgmPlaying(): boolean {
+    return this.audioPlayer.isPlaying(bgmSource)
   }
 
   beginCountdownSequence(): void {

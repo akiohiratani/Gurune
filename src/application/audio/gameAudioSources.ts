@@ -12,4 +12,6 @@ export const countdownVoiceSources = [
 
 export const winVoiceSource = '/pattern/voice/1.mp3' as const
 
-export const gameAudioSources = [...countdownVoiceSources, winVoiceSource] as const
+export const bgmSource = '/bgm/1.mp3' as const
+
+export const gameAudioSources = [...countdownVoiceSources, winVoiceSource, bgmSource] as const

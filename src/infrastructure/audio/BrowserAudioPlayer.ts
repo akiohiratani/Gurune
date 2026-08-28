@@ -38,7 +38,7 @@ export class BrowserAudioPlayer implements AudioPlayer {
     silentSource.start(0)
   }
 
-  async play(source: string): Promise<AudioPlayback> {
+  async play(source: string, options: { loop?: boolean } = {}): Promise<AudioPlayback> {
     await this.preloadOne(source)
 
     const context = this.getContext()
@@ -56,6 +56,7 @@ export class BrowserAudioPlayer implements AudioPlayer {
 
     const node = context.createBufferSource()
     node.buffer = buffer
+    node.loop = options.loop ?? false
     node.connect(context.destination)
 
     const playbacks = this.activePlaybacks.get(source) ?? new Set<ActivePlayback>()
@@ -89,6 +90,10 @@ export class BrowserAudioPlayer implements AudioPlayer {
     }
 
     return { ended, durationSeconds: buffer.duration }
+  }
+
+  isPlaying(source: string): boolean {
+    return (this.activePlaybacks.get(source)?.size ?? 0) > 0
   }
 
   stop(source: string): void {
