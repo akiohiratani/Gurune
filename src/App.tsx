@@ -2,7 +2,6 @@ import { useMemo } from 'react'
 import { parseProbabilityPercent } from './application/probabilityPercent'
 import { RandomLotteryFactory } from './infrastructure/lottery/RandomLotteryFactory'
 import { RandomWinPatternSelector } from './infrastructure/lottery/RandomWinPatternSelector'
-import { HoldList } from './presentation/components/HoldList/HoldList'
 import { ProbabilitySetting } from './presentation/components/ProbabilitySetting/ProbabilitySetting'
 import { WinPatternOverlay } from './presentation/components/WinPatternOverlay/WinPatternOverlay'
 import { useLotteryGame } from './presentation/hooks/useLotteryGame'
@@ -15,8 +14,9 @@ function App() {
   const game = useLotteryGame(lotteryFactory, winPatternSelector)
   const isIdle = game.status === 'idle'
   const canStart = isIdle && parseProbabilityPercent(game.probabilityPercent).valid
-  const hitCount = game.holds.filter((hold) => hold.result === 'hit').length
-  const completedCount = game.holds.filter((hold) => hold.result !== 'pending').length
+  const countdownImagePath = game.currentIndex >= 0
+    ? `/count/img/${game.holds.length - game.currentIndex}.png`
+    : null
 
   return (
     <main className="game-shell">
@@ -38,29 +38,20 @@ function App() {
       <section className="game-stage" aria-label="抽選ゲーム">
         <div className="stage-heading">
           <div>
-            <p className="section-index">01 / DRAW QUEUE</p>
-            <h2>3つの保留を抽選</h2>
-          </div>
-          <div className="count-display" aria-live="polite">
-            <span>COUNT</span>
-            <strong>{game.holds.length - completedCount}</strong>
-            <span>/ {game.holds.length}</span>
+            <p className="section-index">01 / DRAW</p>
+            <h2>抽選中</h2>
           </div>
         </div>
 
-        <HoldList holds={game.holds} currentIndex={game.currentIndex} />
-
-        <div className="result-strip" aria-live="polite">
-          <span>RESULT</span>
-          <strong>
-            {isIdle
-              ? '確率を設定してスタート'
-              : game.status === 'running'
-                ? `${game.currentIndex + 1}番を抽選しています`
-                : hitCount > 0
-                  ? `${hitCount}件 当選`
-                  : '今回は当選なし'}
-          </strong>
+        <div className="countdown-display" aria-live="polite" aria-label="抽選カウントダウン">
+          {countdownImagePath && (
+            <img
+              key={countdownImagePath}
+              className="countdown-image"
+              src={countdownImagePath}
+              alt={`${game.holds.length - game.currentIndex}番目の抽選`}
+            />
+          )}
         </div>
       </section>
 
