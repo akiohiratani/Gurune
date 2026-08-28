@@ -191,11 +191,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto 1fr;
-  background-color: var(--paper);
-  background-image:
-    linear-gradient(rgba(23, 25, 20, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(23, 25, 20, 0.045) 1px, transparent 1px);
-  background-size: 28px 28px;
+  background: var(--coral);
 }
 
 .game-header {
@@ -276,8 +272,6 @@
   display: grid;
   place-items: center;
   overflow: visible;
-  border-top: 2px solid var(--ink);
-  border-bottom: 1px solid var(--line);
 }
 
 .countdown-image {
@@ -443,11 +437,7 @@
 .result-screen {
   min-height: 100vh;
   padding: clamp(28px, 5vw, 72px);
-  background-color: var(--paper);
-  background-image:
-    linear-gradient(rgba(23, 25, 20, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(23, 25, 20, 0.045) 1px, transparent 1px);
-  background-size: 28px 28px;
+  background: var(--coral);
 }
 
 .result-heading {
