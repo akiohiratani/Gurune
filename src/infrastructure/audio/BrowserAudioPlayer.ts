@@ -88,7 +88,7 @@ export class BrowserAudioPlayer implements AudioPlayer {
       throw error
     }
 
-    return { ended }
+    return { ended, durationSeconds: buffer.duration }
   }
 
   stop(source: string): void {

@@ -36,7 +36,11 @@ function App() {
         />
       )}
       {game.presentationPath && game.presentationResult && (
-        <WinPatternOverlay imagePath={game.presentationPath} result={game.presentationResult} />
+        <WinPatternOverlay
+          imagePath={game.presentationPath}
+          result={game.presentationResult}
+          durationSeconds={game.presentationDurationSeconds}
+        />
       )}
 
       <header className="game-header">

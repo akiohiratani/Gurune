@@ -1,5 +1,5 @@
 import type { AudioPlayback, AudioPlayer } from '../ports/AudioPlayer'
-import { gameAudioSources } from './gameAudioSources'
+import { gameAudioSources, winVoiceSource } from './gameAudioSources'
 
 const VOICE_VARIATION_COUNT = 3
 
@@ -9,6 +9,7 @@ export class GameAudioService {
   private preloadPromise: Promise<void> | null = null
   private countdownVariation: number | null = null
   private currentCountdownSource: string | null = null
+  private isWinVoicePlaying = false
 
   constructor(
     audioPlayer: AudioPlayer,
@@ -55,6 +56,23 @@ export class GameAudioService {
     }
   }
 
+  async playWin(): Promise<AudioPlayback> {
+    this.stopCountdown()
+    this.stopWin()
+    this.isWinVoicePlaying = true
+
+    try {
+      const playback = await this.audioPlayer.play(winVoiceSource)
+      void playback.ended.then(() => {
+        this.isWinVoicePlaying = false
+      })
+      return playback
+    } catch (error) {
+      this.isWinVoicePlaying = false
+      throw error
+    }
+  }
+
   stopCountdown(): void {
     if (this.currentCountdownSource) {
       this.audioPlayer.stop(this.currentCountdownSource)
@@ -62,8 +80,15 @@ export class GameAudioService {
     }
   }
 
+  stopWin(): void {
+    if (!this.isWinVoicePlaying) return
+    this.audioPlayer.stop(winVoiceSource)
+    this.isWinVoicePlaying = false
+  }
+
   reset(): void {
     this.stopCountdown()
+    this.stopWin()
     this.countdownVariation = null
   }
 }

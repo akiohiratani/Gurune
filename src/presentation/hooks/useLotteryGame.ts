@@ -38,8 +38,10 @@ export function useLotteryGame(
   const [countdownVisibleIndex, setCountdownVisibleIndex] = useState(-1)
   const [presentationPath, setPresentationPath] = useState<string | null>(null)
   const [presentationResult, setPresentationResult] = useState<'hit' | 'miss' | null>(null)
+  const [presentationDurationSeconds, setPresentationDurationSeconds] = useState<number | null>(null)
   const [winRecords, setWinRecords] = useState<WinRecord[]>([])
   const sessionRef = useRef<GameSession | null>(null)
+  const winPlaybackRef = useRef<AudioPlayback | null>(null)
   const startingRef = useRef(false)
 
   const startGame = useMemo(() => new StartGameUseCase(lotteryFactory), [lotteryFactory])
@@ -89,6 +91,7 @@ export function useLotteryGame(
     gameAudio.beginCountdownSequence()
     setPresentationPath(null)
     setPresentationResult(null)
+    setPresentationDurationSeconds(null)
     setWinRecords([])
     setHolds(createHolds())
     setCountdownVisibleIndex(-1)
@@ -108,6 +111,8 @@ export function useLotteryGame(
     setCountdownVisibleIndex(-1)
     setPresentationPath(null)
     setPresentationResult(null)
+    setPresentationDurationSeconds(null)
+    winPlaybackRef.current = null
     setWinRecords([])
   }, [gameAudio])
 
@@ -136,15 +141,29 @@ export function useLotteryGame(
       if (!session || !hold) return
 
       const hit = drawHold.execute(session, { holdId: hold.id, holdIndex: currentIndex })
-      setHolds((current) =>
-        current.map((item, index) =>
-          index === currentIndex ? { ...item, result: hit ? 'hit' : 'miss' } : item,
-        ),
-      )
 
       if (hit) {
+        // Stop any countdown source before starting the win voice.
         gameAudio.stopCountdown()
+        let winPlayback: AudioPlayback | null = null
+        try {
+          winPlayback = await gameAudio.playWin()
+        } catch (audioError) {
+          console.error('[Game] Win audio playback failed.', audioError)
+        }
+        if (cancelled) {
+          gameAudio.stopWin()
+          return
+        }
+
         const imagePath = selectWinPattern.execute()
+        setHolds((current) =>
+          current.map((item, index) =>
+            index === currentIndex ? { ...item, result: 'hit' } : item,
+          ),
+        )
+        winPlaybackRef.current = winPlayback
+        setPresentationDurationSeconds(winPlayback?.durationSeconds ?? null)
         setWinRecords((records) => [
           ...records,
           { patternNumber: getPatternNumber(imagePath), holdNumber: currentIndex + 1 },
@@ -154,7 +173,17 @@ export function useLotteryGame(
         setCountdownVisibleIndex(-1)
         setCurrentIndex(-1)
         setStatus('celebrating')
-      } else if (currentIndex === holds.length - 1) {
+        return
+      }
+
+      setHolds((current) =>
+        current.map((item, index) =>
+          index === currentIndex ? { ...item, result: 'miss' } : item,
+        ),
+      )
+
+      if (currentIndex === holds.length - 1) {
+        setPresentationDurationSeconds(null)
         setPresentationPath('/pattern/win/0.png')
         setPresentationResult('miss')
         setCountdownVisibleIndex(-1)
@@ -176,19 +205,35 @@ export function useLotteryGame(
   useEffect(() => {
     if (status !== 'celebrating' || !presentationResult) return
 
-    const timer = window.setTimeout(() => {
-      setPresentationPath(null)
-      if (presentationResult === 'hit') {
-        gameAudio.beginCountdownSequence()
+    if (presentationResult === 'hit') {
+      let cancelled = false
+
+      const continueAfterWinVoice = async () => {
+        const playback = winPlaybackRef.current
+        if (playback) await playback.ended
+        if (cancelled) return
+
+        winPlaybackRef.current = null
+        setPresentationPath(null)
         setPresentationResult(null)
+        setPresentationDurationSeconds(null)
+        gameAudio.beginCountdownSequence()
         setHolds(createHolds())
         setCountdownVisibleIndex(-1)
         setCurrentIndex(0)
         setStatus('running')
-      } else {
-        setPresentationResult(null)
-        setStatus('finished')
       }
+
+      void continueAfterWinVoice()
+      return () => {
+        cancelled = true
+      }
+    }
+
+    const timer = window.setTimeout(() => {
+      setPresentationPath(null)
+      setPresentationResult(null)
+      setStatus('finished')
     }, gameConfig.resultPresentationMs)
 
     return () => window.clearTimeout(timer)
@@ -209,6 +254,7 @@ export function useLotteryGame(
     isCountdownVisible: countdownVisibleIndex === currentIndex,
     presentationPath,
     presentationResult,
+    presentationDurationSeconds,
     winRecords,
     canStart: status === 'idle' && probabilityValidation.valid,
     continuationRatePercent: continuationRate.valid ? continuationRate.percent : null,

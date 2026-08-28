@@ -143,7 +143,7 @@
   height: 8px;
   background: var(--acid);
   transform-origin: left;
-  animation: presentation-progress 5s linear both;
+  animation: presentation-progress var(--presentation-duration, 5s) linear both;
 }
 
 .win-pattern-overlay--miss .win-pattern-label {

@@ -1,5 +1,6 @@
 export type AudioPlayback = {
   ended: Promise<void>
+  durationSeconds: number
 }
 
 export interface AudioPlayer {

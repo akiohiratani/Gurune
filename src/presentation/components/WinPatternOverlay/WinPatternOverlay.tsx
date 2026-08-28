@@ -1,12 +1,28 @@
+import type { CSSProperties } from 'react'
+
 type WinPatternOverlayProps = {
   imagePath: string
   result: 'hit' | 'miss'
+  durationSeconds: number | null
 }
 
-export function WinPatternOverlay({ imagePath, result }: WinPatternOverlayProps) {
+type OverlayStyle = CSSProperties & {
+  '--presentation-duration'?: string
+}
+
+export function WinPatternOverlay({
+  imagePath,
+  result,
+  durationSeconds,
+}: WinPatternOverlayProps) {
+  const style: OverlayStyle = durationSeconds
+    ? { '--presentation-duration': `${durationSeconds}s` }
+    : {}
+
   return (
     <div
       className={`win-pattern-overlay win-pattern-overlay--${result}`}
+      style={style}
       role="dialog"
       aria-label={result === 'hit' ? '当選演出' : '抽選終了演出'}
       aria-live="assertive"
