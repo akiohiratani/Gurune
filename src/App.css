@@ -79,6 +79,27 @@
   animation: win-overlay-in 780ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+.win-movie-overlay {
+  /* 抽選画面や既存の当選演出より前面に固定し、再生中は画面全体を動画演出として扱います。 */
+  position: fixed;
+  z-index: 12;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #000;
+}
+
+.win-movie {
+  /* ビューポート全体を使用し、縦横比を維持しながら余白なく最大表示します。 */
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  /* 画面比率と動画比率が異なる場合は端をトリミングし、黒帯よりも演出の大きさを優先します。 */
+  object-fit: cover;
+}
+
 .win-pattern-image {
   /* 画面より少し大きく配置し、拡大縮小中に背景の端が見えないようにします。 */
   position: absolute;

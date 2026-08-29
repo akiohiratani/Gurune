@@ -3,11 +3,13 @@ import type { GameAudioService } from '../../application/audio/GameAudioService'
 import type { AudioPlayback } from '../../application/ports/AudioPlayer'
 import type { LotteryFactory } from '../../application/ports/LotteryFactory'
 import type { WinPatternSelector } from '../../application/ports/WinPatternSelector'
+import type { WinMovieSelector } from '../../application/ports/WinMovieSelector'
 import { calculateContinuationRate } from '../../application/continuationRate'
 import { parseProbabilityPercent, probabilityToPercent } from '../../application/probabilityPercent'
 import { DrawHoldUseCase } from '../../application/usecases/DrawHoldUseCase'
 import { SelectWinPatternUseCase } from '../../application/usecases/SelectWinPatternUseCase'
 import { StartGameUseCase } from '../../application/usecases/StartGameUseCase'
+import { WinMovieFlowUseCase } from '../../application/usecases/WinMovieFlowUseCase'
 import { gameConfig } from '../../config/gameConfig'
 import type { GameSession, GameStatus, Hold, WinRecord } from '../../domain/game/Game'
 
@@ -26,6 +28,7 @@ function getPatternNumber(imagePath: string): number {
 export function useLotteryGame(
   lotteryFactory: LotteryFactory,
   winPatternSelector: WinPatternSelector,
+  winMovieSelector: WinMovieSelector,
   gameAudio: GameAudioService,
 ) {
   const [status, setStatus] = useState<GameStatus>('idle')
@@ -39,6 +42,7 @@ export function useLotteryGame(
   const [presentationPath, setPresentationPath] = useState<string | null>(null)
   const [presentationResult, setPresentationResult] = useState<'hit' | 'miss' | null>(null)
   const [presentationDurationSeconds, setPresentationDurationSeconds] = useState<number | null>(null)
+  const [winMoviePath, setWinMoviePath] = useState<string | null>(null)
   const [winRecords, setWinRecords] = useState<WinRecord[]>([])
   const sessionRef = useRef<GameSession | null>(null)
   const winPlaybackRef = useRef<AudioPlayback | null>(null)
@@ -49,6 +53,10 @@ export function useLotteryGame(
   const selectWinPattern = useMemo(
     () => new SelectWinPatternUseCase(winPatternSelector),
     [winPatternSelector],
+  )
+  const winMovieFlow = useMemo(
+    () => new WinMovieFlowUseCase(winMovieSelector),
+    [winMovieSelector],
   )
   const probabilityValidation = useMemo(
     () => parseProbabilityPercent(probabilityPercent),
@@ -96,6 +104,7 @@ export function useLotteryGame(
     setPresentationPath(null)
     setPresentationResult(null)
     setPresentationDurationSeconds(null)
+    setWinMoviePath(null)
     setWinRecords([])
     setHolds(createHolds())
     setCountdownVisibleIndex(-1)
@@ -116,6 +125,7 @@ export function useLotteryGame(
     setPresentationPath(null)
     setPresentationResult(null)
     setPresentationDurationSeconds(null)
+    setWinMoviePath(null)
     winPlaybackRef.current = null
     setWinRecords([])
   }, [gameAudio])
@@ -207,6 +217,7 @@ export function useLotteryGame(
   }, [currentIndex, drawHold, gameAudio, holds, selectWinPattern, status])
 
   useEffect(() => {
+    // このEffectは既存の当落演出を完了させ、その後の状態へ進める役割を持ちます。
     if (status !== 'celebrating' || !presentationResult) return
 
     if (presentationResult === 'hit') {
@@ -214,18 +225,22 @@ export function useLotteryGame(
 
       const continueAfterWinVoice = async () => {
         const playback = winPlaybackRef.current
+        // 既存の大当たり画像・当選音声による演出が終わるまでは動画を表示しません。
         if (playback) await playback.ended
         if (cancelled) return
 
+        // Application層へ遷移を依頼し、動画パスの選択もこの開始処理の中で一度だけ行います。
+        const transition = winMovieFlow.start(status)
+        if (!transition) return
+
+        // 既存演出を片付けてから動画専用状態へ切り替えます。
+        // currentIndexはここではまだ戻さないため、動画再生中に次の抽選は開始されません。
         winPlaybackRef.current = null
         setPresentationPath(null)
         setPresentationResult(null)
         setPresentationDurationSeconds(null)
-        gameAudio.beginCountdownSequence()
-        setHolds(createHolds())
-        setCountdownVisibleIndex(-1)
-        setCurrentIndex(0)
-        setStatus('running')
+        setWinMoviePath(transition.moviePath)
+        setStatus(transition.status)
       }
 
       void continueAfterWinVoice()
@@ -234,6 +249,8 @@ export function useLotteryGame(
       }
     }
 
+    // 外れで全保留を消化した場合の既存処理です。
+    // このタイマーは外れ結果の表示時間だけに使用し、大当たり後の動画終了判定には使用しません。
     const timer = window.setTimeout(() => {
       setPresentationPath(null)
       setPresentationResult(null)
@@ -241,7 +258,23 @@ export function useLotteryGame(
     }, gameConfig.resultPresentationMs)
 
     return () => window.clearTimeout(timer)
-  }, [gameAudio, presentationResult, status])
+  }, [presentationResult, status, winMovieFlow])
+
+  const completeWinMovie = useCallback(() => {
+    // WinMovieOverlayのendedイベントから呼ばれます。
+    // Application層がplayingWinMovieからの正しい遷移であることを確認します。
+    const transition = winMovieFlow.complete(status)
+    if (!transition) return
+
+    // 動画表示を終了してから保留を3つ作り直し、先頭の保留から次の抽選を開始します。
+    // 状態を最後にrunningへ変えることで、準備が済む前に抽選用Effectが走らないようにしています。
+    setWinMoviePath(null)
+    gameAudio.beginCountdownSequence()
+    setHolds(createHolds())
+    setCountdownVisibleIndex(-1)
+    setCurrentIndex(transition.currentIndex)
+    setStatus(transition.status)
+  }, [gameAudio, status, winMovieFlow])
 
   const updateProbability = useCallback((value: string) => {
     if (status !== 'idle') return
@@ -259,11 +292,13 @@ export function useLotteryGame(
     presentationPath,
     presentationResult,
     presentationDurationSeconds,
+    winMoviePath,
     winRecords,
     canStart: status === 'idle' && probabilityValidation.valid,
     continuationRatePercent: continuationRate.valid ? continuationRate.percent : null,
     updateProbability,
     start,
     reset,
+    completeWinMovie,
   }
 }
