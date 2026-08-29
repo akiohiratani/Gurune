@@ -52,17 +52,6 @@ function App() {
         <WinMovieOverlay moviePath={game.winMoviePath} onEnded={game.completeWinMovie} />
       )}
 
-      <header className="game-header">
-        <div>
-          <p className="eyebrow">THREE DRAW / LIVE LOTTERY</p>
-          <h1>LUCK CIRCUIT</h1>
-        </div>
-        <div className={`status-badge status-badge--${game.status}`}>
-          <span className="status-dot" aria-hidden="true" />
-          {isIdle ? 'READY' : game.status === 'running' ? 'DRAWING' : game.status === 'playingWinMovie' ? 'MOVIE' : 'WIN'}
-        </div>
-      </header>
-
       <section className="game-stage" aria-label="抽選ゲーム">
         <div className="countdown-display" aria-live="polite" aria-label="抽選カウントダウン">
           {countdownImagePath && (
