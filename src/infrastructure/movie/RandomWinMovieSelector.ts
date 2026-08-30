@@ -1,16 +1,14 @@
 import type { WinMovieSelector } from '../../application/ports/WinMovieSelector'
+import winMoviePaths from 'virtual:win-movies'
 
-// public/movie/win/ に配置する動画は1.mp4から7.mp4までの7本です。
-// 候補数やファイルパスというリソース固有の知識はInfrastructure層にまとめています。
-const winMovieCount = 7
-
-/** public/movie/win/1.mp4～7.mp4から、毎回ランダムに1本を選択します。 */
+/** public/movie/win/ 内のmp4ファイルから、毎回ランダムに1本を選択します。 */
 export class RandomWinMovieSelector implements WinMovieSelector {
   select(): string {
-    // Math.random()は0以上1未満なので、切り捨て後に1を加えると必ず1～7の整数になります。
-    const movieNumber = Math.floor(Math.random() * winMovieCount) + 1
+    if (winMoviePaths.length === 0) {
+      throw new Error('public/movie/win にmp4ファイルがありません。')
+    }
 
-    // Viteではpublic配下がWebルートとして公開されるため、publicを含めない絶対パスを返します。
-    return `/movie/win/${movieNumber}.mp4`
+    const movieIndex = Math.floor(Math.random() * winMoviePaths.length)
+    return winMoviePaths[movieIndex]
   }
 }
