@@ -12,6 +12,19 @@ export const countdownVoiceSources = [
 
 export const winVoiceSource = '/pattern/voice/1.mp3' as const
 
+// 777の襖・フラッシュ演出中に再生する音源です。
+export const winBreakdownVoiceSource = '/pattern/breakdown/vocie/1.mp3' as const
+
+// 4.pngの×3登場演出開始から3回連続再生する音源です。
+export const winMultiplierVoiceSource = '/pattern/breakdown/vocie/2.mp3' as const
+
 export const bgmSource = '/bgm/1.mp3' as const
 
-export const gameAudioSources = [...countdownVoiceSources, winVoiceSource, bgmSource] as const
+// ゲーム開始時にまとめて読み込み、演出開始時の通信待ちを避けます。
+export const gameAudioSources = [
+  ...countdownVoiceSources,
+  winVoiceSource,
+  winBreakdownVoiceSource,
+  winMultiplierVoiceSource,
+  bgmSource,
+] as const

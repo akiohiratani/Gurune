@@ -1,4 +1,4 @@
-import type { WinRecord } from '../../../domain/game/Game'
+import { countPatternWins, countWins, type WinRecord } from '../../../domain/game/Game'
 
 type ResultScreenProps = {
   records: WinRecord[]
@@ -21,6 +21,8 @@ export function ResultScreen({ records, onReplay }: ResultScreenProps) {
           const recordsForPattern = records.filter(
             (record) => record.patternNumber === patternNumber,
           )
+          // レコード件数ではなく倍率を合計し、×3を3回分として表示します。
+          const winCount = countPatternWins(records, patternNumber)
           return (
             <article className="result-card" key={patternNumber}>
               <img
@@ -29,7 +31,7 @@ export function ResultScreen({ records, onReplay }: ResultScreenProps) {
                 alt={`図柄 ${patternNumber}`}
               />
               <div className="result-count">
-                <strong>{recordsForPattern.length}</strong>
+                <strong>{winCount}</strong>
                 <span>回当選</span>
               </div>
               {recordsForPattern.length > 0 && (
@@ -42,7 +44,10 @@ export function ResultScreen({ records, onReplay }: ResultScreenProps) {
         })}
       </div>
 
-      <p className="result-total">TOTAL WINS <strong>{records.length}</strong></p>
+      <p className="result-total">
+        {/* TOTALも図柄別表示と同じDomainルールで倍率合計します。 */}
+        TOTAL WINS <strong>{countWins(records)}</strong>
+      </p>
       <button type="button" className="primary-action result-reset" onClick={onReplay}>
         <span>もう一度プレイ</span>
         <span aria-hidden="true">→</span>

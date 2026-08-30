@@ -1,5 +1,11 @@
 import type { AudioPlayback, AudioPlayer } from '../ports/AudioPlayer'
-import { bgmSource, gameAudioSources, winVoiceSource } from './gameAudioSources'
+import {
+  bgmSource,
+  gameAudioSources,
+  winBreakdownVoiceSource,
+  winMultiplierVoiceSource,
+  winVoiceSource,
+} from './gameAudioSources'
 
 const VOICE_VARIATION_COUNT = 3
 
@@ -10,6 +16,9 @@ export class GameAudioService {
   private countdownVariation: number | null = null
   private currentCountdownSource: string | null = null
   private isWinVoicePlaying = false
+  // 内訳演出の2種類の音源を個別管理し、リセット時に確実に停止できるようにします。
+  private isWinBreakdownVoicePlaying = false
+  private isWinMultiplierVoicePlaying = false
   private bgmStartPromise: Promise<void> | null = null
 
   constructor(
@@ -95,6 +104,42 @@ export class GameAudioService {
     }
   }
 
+  /** 777の襖・フラッシュ演出用音源を先頭から再生します。 */
+  async playWinBreakdown(): Promise<AudioPlayback> {
+    // 重複呼び出し時は旧再生を止め、同じ音源が重ならないようにします。
+    this.stopWinBreakdown()
+    this.isWinBreakdownVoicePlaying = true
+
+    try {
+      const playback = await this.audioPlayer.play(winBreakdownVoiceSource)
+      // 自然終了時にも再生状態を戻し、後続の停止判定を正しく保ちます。
+      void playback.ended.then(() => {
+        this.isWinBreakdownVoicePlaying = false
+      })
+      return playback
+    } catch (error) {
+      this.isWinBreakdownVoicePlaying = false
+      throw error
+    }
+  }
+
+  /** ×3画像表示中の音源を1回再生します。3回の繰り返し制御はゲーム進行側が担います。 */
+  async playWinMultiplier(): Promise<AudioPlayback> {
+    this.stopWinMultiplier()
+    this.isWinMultiplierVoicePlaying = true
+
+    try {
+      const playback = await this.audioPlayer.play(winMultiplierVoiceSource)
+      void playback.ended.then(() => {
+        this.isWinMultiplierVoicePlaying = false
+      })
+      return playback
+    } catch (error) {
+      this.isWinMultiplierVoicePlaying = false
+      throw error
+    }
+  }
+
   stopCountdown(): void {
     if (this.currentCountdownSource) {
       this.audioPlayer.stop(this.currentCountdownSource)
@@ -108,9 +153,26 @@ export class GameAudioService {
     this.isWinVoicePlaying = false
   }
 
+  /** 777演出音が再生中の場合だけ停止し、停止済み音源への不要な操作を避けます。 */
+  stopWinBreakdown(): void {
+    if (!this.isWinBreakdownVoicePlaying) return
+    this.audioPlayer.stop(winBreakdownVoiceSource)
+    this.isWinBreakdownVoicePlaying = false
+  }
+
+  /** ×3演出音が再生中の場合だけ停止します。 */
+  stopWinMultiplier(): void {
+    if (!this.isWinMultiplierVoicePlaying) return
+    this.audioPlayer.stop(winMultiplierVoiceSource)
+    this.isWinMultiplierVoicePlaying = false
+  }
+
   reset(): void {
     this.stopCountdown()
     this.stopWin()
+    // ゲーム途中のリセットでも内訳演出音を残しません。
+    this.stopWinBreakdown()
+    this.stopWinMultiplier()
     this.countdownVariation = null
   }
 }

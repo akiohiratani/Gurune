@@ -4,10 +4,12 @@ import { BrowserAudioPlayer } from './infrastructure/audio/BrowserAudioPlayer'
 import { RandomLotteryFactory } from './infrastructure/lottery/RandomLotteryFactory'
 import { RandomWinPatternSelector } from './infrastructure/lottery/RandomWinPatternSelector'
 import { RandomWinMovieSelector } from './infrastructure/movie/RandomWinMovieSelector'
+import { MathRandomSource } from './infrastructure/random/MathRandomSource'
 import { GameSettingsModal } from './presentation/components/GameSettingsModal/GameSettingsModal'
 import { ResultScreen } from './presentation/components/ResultScreen/ResultScreen'
 import { WinPatternOverlay } from './presentation/components/WinPatternOverlay/WinPatternOverlay'
 import { WinMovieOverlay } from './presentation/components/WinMovieOverlay/WinMovieOverlay'
+import { WinBreakdownOverlay } from './presentation/components/WinBreakdownOverlay/WinBreakdownOverlay'
 import { useLotteryGame } from './presentation/hooks/useLotteryGame'
 import './App.css'
 
@@ -16,8 +18,16 @@ function App() {
   const winPatternSelector = useMemo(() => new RandomWinPatternSelector(), [])
   // 動画候補の選択とパス解決を行うInfrastructure実装を、ゲーム進行へ注入します。
   const winMovieSelector = useMemo(() => new RandomWinMovieSelector(), [])
+  // 20%倍率抽選の乱数実装をInfrastructureからゲーム進行へ注入します。
+  const randomSource = useMemo(() => new MathRandomSource(), [])
   const gameAudio = useMemo(() => new GameAudioService(new BrowserAudioPlayer()), [])
-  const game = useLotteryGame(lotteryFactory, winPatternSelector, winMovieSelector, gameAudio)
+  const game = useLotteryGame(
+    lotteryFactory,
+    winPatternSelector,
+    winMovieSelector,
+    randomSource,
+    gameAudio,
+  )
   const isIdle = game.status === 'idle'
   const countdownImagePath = game.isCountdownVisible && game.currentIndex >= 0
     ? `/count/img/${game.holds.length - game.currentIndex}.png`
@@ -50,6 +60,13 @@ function App() {
         /* Appは動画を表示し、ended通知をゲーム進行へ渡すだけです。
          * 次の抽選を始める判断や保留の再作成はコンポーネント内では行いません。 */
         <WinMovieOverlay moviePath={game.winMoviePath} onEnded={game.completeWinMovie} />
+      )}
+      {/* ×1はUIを表示せず、×3が確定した場合だけ内訳演出をマウントします。 */}
+      {game.winMultiplier === 3 && (
+        <WinBreakdownOverlay
+          isSpecialAudioComplete={game.isWinBreakdownAudioComplete}
+          onMultiplierStarted={game.startWinMultiplierPresentation}
+        />
       )}
 
       <section className="game-stage" aria-label="抽選ゲーム">

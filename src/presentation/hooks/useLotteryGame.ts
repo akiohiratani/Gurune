@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { GameAudioService } from '../../application/audio/GameAudioService'
 import type { AudioPlayback } from '../../application/ports/AudioPlayer'
 import type { LotteryFactory } from '../../application/ports/LotteryFactory'
+import type { RandomSource } from '../../application/ports/RandomSource'
 import type { WinPatternSelector } from '../../application/ports/WinPatternSelector'
 import type { WinMovieSelector } from '../../application/ports/WinMovieSelector'
 import { calculateContinuationRate } from '../../application/continuationRate'
@@ -10,8 +11,17 @@ import { DrawHoldUseCase } from '../../application/usecases/DrawHoldUseCase'
 import { SelectWinPatternUseCase } from '../../application/usecases/SelectWinPatternUseCase'
 import { StartGameUseCase } from '../../application/usecases/StartGameUseCase'
 import { WinMovieFlowUseCase } from '../../application/usecases/WinMovieFlowUseCase'
+import { WinBreakdownFlowUseCase } from '../../application/usecases/WinBreakdownFlowUseCase'
 import { gameConfig } from '../../config/gameConfig'
-import type { GameSession, GameStatus, Hold, WinRecord } from '../../domain/game/Game'
+import {
+  SPECIAL_WIN_MULTIPLIER,
+  type GameSession,
+  type GameStatus,
+  type Hold,
+  type PendingWin,
+  type WinMultiplier,
+  type WinRecord,
+} from '../../domain/game/Game'
 
 function createHolds(): Hold[] {
   return Array.from({ length: gameConfig.initialCount }, (_, index) => ({
@@ -29,6 +39,7 @@ export function useLotteryGame(
   lotteryFactory: LotteryFactory,
   winPatternSelector: WinPatternSelector,
   winMovieSelector: WinMovieSelector,
+  randomSource: RandomSource,
   gameAudio: GameAudioService,
 ) {
   const [status, setStatus] = useState<GameStatus>('idle')
@@ -43,10 +54,20 @@ export function useLotteryGame(
   const [presentationResult, setPresentationResult] = useState<'hit' | 'miss' | null>(null)
   const [presentationDurationSeconds, setPresentationDurationSeconds] = useState<number | null>(null)
   const [winMoviePath, setWinMoviePath] = useState<string | null>(null)
+  // nullは内訳UIなし、3は×3専用演出を表示中であることを表します（×1は表示しません）。
+  const [winMultiplier, setWinMultiplier] = useState<WinMultiplier | null>(null)
+  // 777音源の終了をPresentationへ通知し、固定秒数ではなく実再生終了で画面を進めます。
+  const [isWinBreakdownAudioComplete, setIsWinBreakdownAudioComplete] = useState(true)
   const [winRecords, setWinRecords] = useState<WinRecord[]>([])
   const sessionRef = useRef<GameSession | null>(null)
   const winPlaybackRef = useRef<AudioPlayback | null>(null)
   const startingRef = useRef(false)
+  // 大当たり直後は倍率をまだ決めず、動画終了まで元図柄と保留位置を保持します。
+  const pendingWinRef = useRef<PendingWin | null>(null)
+  // 非同期音源処理へ世代番号を付け、リセット後に古い完了通知が状態を更新するのを防ぎます。
+  const winBreakdownSequenceRef = useRef(0)
+  // animationstartの重複通知でも×3音源を複数系列で開始しないためのガードです。
+  const isWinMultiplierAudioStartedRef = useRef(false)
 
   const startGame = useMemo(() => new StartGameUseCase(lotteryFactory), [lotteryFactory])
   const drawHold = useMemo(() => new DrawHoldUseCase(), [])
@@ -57,6 +78,11 @@ export function useLotteryGame(
   const winMovieFlow = useMemo(
     () => new WinMovieFlowUseCase(winMovieSelector),
     [winMovieSelector],
+  )
+  const winBreakdownFlow = useMemo(
+    // 20%抽選と状態遷移はApplicationユースケースへ集約します。
+    () => new WinBreakdownFlowUseCase(randomSource),
+    [randomSource],
   )
   const probabilityValidation = useMemo(
     () => parseProbabilityPercent(probabilityPercent),
@@ -105,6 +131,12 @@ export function useLotteryGame(
     setPresentationResult(null)
     setPresentationDurationSeconds(null)
     setWinMoviePath(null)
+    // 新しいゲームへ前回の内訳状態や非同期完了通知を持ち越しません。
+    setWinMultiplier(null)
+    setIsWinBreakdownAudioComplete(true)
+    winBreakdownSequenceRef.current += 1
+    isWinMultiplierAudioStartedRef.current = false
+    pendingWinRef.current = null
     setWinRecords([])
     setHolds(createHolds())
     setCountdownVisibleIndex(-1)
@@ -126,6 +158,12 @@ export function useLotteryGame(
     setPresentationResult(null)
     setPresentationDurationSeconds(null)
     setWinMoviePath(null)
+    // リセット時は画面状態に加え、進行中だった非同期系列も無効化します。
+    setWinMultiplier(null)
+    setIsWinBreakdownAudioComplete(true)
+    winBreakdownSequenceRef.current += 1
+    isWinMultiplierAudioStartedRef.current = false
+    pendingWinRef.current = null
     winPlaybackRef.current = null
     setWinRecords([])
   }, [gameAudio])
@@ -178,10 +216,12 @@ export function useLotteryGame(
         )
         winPlaybackRef.current = winPlayback
         setPresentationDurationSeconds(winPlayback?.durationSeconds ?? null)
-        setWinRecords((records) => [
-          ...records,
-          { patternNumber: getPatternNumber(imagePath), holdNumber: currentIndex + 1 },
-        ])
+        // 履歴への確定追加は動画終了後の倍率抽選まで延期します。
+        // ここで保持するpatternNumberが、×3時にも加算対象となる元図柄です。
+        pendingWinRef.current = {
+          patternNumber: getPatternNumber(imagePath),
+          holdNumber: currentIndex + 1,
+        }
         setPresentationPath(imagePath)
         setPresentationResult('hit')
         setCountdownVisibleIndex(-1)
@@ -260,21 +300,100 @@ export function useLotteryGame(
     return () => window.clearTimeout(timer)
   }, [presentationResult, status, winMovieFlow])
 
-  const completeWinMovie = useCallback(() => {
-    // WinMovieOverlayのendedイベントから呼ばれます。
-    // Application層がplayingWinMovieからの正しい遷移であることを確認します。
-    const transition = winMovieFlow.complete(status)
+  const finishWinBreakdown = useCallback((currentStatus: GameStatus) => {
+    // Application層に現在状態を検証させ、重複完了による二重抽選を防ぎます。
+    const transition = winBreakdownFlow.complete(currentStatus)
     if (!transition) return
 
-    // 動画表示を終了してから保留を3つ作り直し、先頭の保留から次の抽選を開始します。
-    // 状態を最後にrunningへ変えることで、準備が済む前に抽選用Effectが走らないようにしています。
-    setWinMoviePath(null)
+    setWinMultiplier(null)
+    setIsWinBreakdownAudioComplete(true)
+    // 進行中の音源・コールバックを無効化してから新しい3保留を準備します。
+    winBreakdownSequenceRef.current += 1
+    isWinMultiplierAudioStartedRef.current = false
+    gameAudio.stopWinBreakdown()
+    gameAudio.stopWinMultiplier()
     gameAudio.beginCountdownSequence()
     setHolds(createHolds())
     setCountdownVisibleIndex(-1)
     setCurrentIndex(transition.currentIndex)
+    // 準備を終えた最後にrunningへ戻し、抽選Effectの早期実行を避けます。
     setStatus(transition.status)
-  }, [gameAudio, status, winMovieFlow])
+  }, [gameAudio, winBreakdownFlow])
+
+  const completeWinMovie = useCallback(() => {
+    // 動画のendedイベントを起点に、ここで初めて20%抽選と履歴反映を行います。
+    const transition = winBreakdownFlow.start(status, pendingWinRef.current, winRecords)
+    if (!transition) return
+
+    setWinMoviePath(null)
+    setWinRecords(transition.records)
+    pendingWinRef.current = null
+
+    if (transition.multiplier !== SPECIAL_WIN_MULTIPLIER) {
+      // ×1は内訳画像を表示せず、確定済み履歴を保ったまま次抽選へ進みます。
+      finishWinBreakdown(transition.status)
+      return
+    }
+
+    setWinMultiplier(transition.multiplier)
+    // 777音源が終わるまでは襖・フラッシュ表示から×3画像へ進めません。
+    setIsWinBreakdownAudioComplete(false)
+    isWinMultiplierAudioStartedRef.current = false
+    setStatus(transition.status)
+
+    // この×3演出専用の世代番号を確保します。
+    const sequence = winBreakdownSequenceRef.current + 1
+    winBreakdownSequenceRef.current = sequence
+
+    const playBreakdownVoice = async () => {
+      try {
+        // 音源の実際のended Promiseを待ち、再生時間をコードへ固定しません。
+        const playback = await gameAudio.playWinBreakdown()
+        await playback.ended
+      } catch (audioError) {
+        console.error('[Game] Win breakdown audio playback failed.', audioError)
+      } finally {
+        // リセットなどで世代が変わっていれば、古い完了通知は破棄します。
+        if (winBreakdownSequenceRef.current === sequence) {
+          setIsWinBreakdownAudioComplete(true)
+        }
+      }
+    }
+
+    void playBreakdownVoice()
+  }, [finishWinBreakdown, gameAudio, status, winBreakdownFlow, winRecords])
+
+  const startWinMultiplierPresentation = useCallback(() => {
+    // 4.pngのanimationstartから呼ばれます。状態・倍率・開始済みフラグをすべて検証します。
+    if (
+      status !== 'revealingWinBreakdown'
+      || winMultiplier !== SPECIAL_WIN_MULTIPLIER
+      || isWinMultiplierAudioStartedRef.current
+    ) return
+
+    isWinMultiplierAudioStartedRef.current = true
+    // 777演出から継続している同じ内訳系列であることを後から確認します。
+    const sequence = winBreakdownSequenceRef.current
+
+    const playMultiplierVoice = async () => {
+      try {
+        // 各再生の終了を待ってから次を開始し、同じ音源を重ねず3回連続再生します。
+        for (let playCount = 0; playCount < 3; playCount += 1) {
+          const playback = await gameAudio.playWinMultiplier()
+          await playback.ended
+        }
+      } catch (audioError) {
+        console.error('[Game] Win multiplier audio playback failed.', audioError)
+      } finally {
+        // 3回目の終了（または再生失敗）後も現系列なら、画像を閉じて次抽選へ進みます。
+        if (winBreakdownSequenceRef.current === sequence) {
+          finishWinBreakdown('revealingWinBreakdown')
+        }
+      }
+    }
+
+    void playMultiplierVoice()
+  }, [finishWinBreakdown, gameAudio, status, winMultiplier])
 
   const updateProbability = useCallback((value: string) => {
     if (status !== 'idle') return
@@ -293,6 +412,8 @@ export function useLotteryGame(
     presentationResult,
     presentationDurationSeconds,
     winMoviePath,
+    winMultiplier,
+    isWinBreakdownAudioComplete,
     winRecords,
     canStart: status === 'idle' && probabilityValidation.valid,
     continuationRatePercent: continuationRate.valid ? continuationRate.percent : null,
@@ -300,5 +421,6 @@ export function useLotteryGame(
     start,
     reset,
     completeWinMovie,
+    startWinMultiplierPresentation,
   }
 }
