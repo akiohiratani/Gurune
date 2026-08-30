@@ -6,6 +6,7 @@ import { RandomWinPatternSelector } from './infrastructure/lottery/RandomWinPatt
 import { RandomWinMovieSelector } from './infrastructure/movie/RandomWinMovieSelector'
 import { MathRandomSource } from './infrastructure/random/MathRandomSource'
 import { GameSettingsModal } from './presentation/components/GameSettingsModal/GameSettingsModal'
+import { GameTimer } from './presentation/components/GameTimer/GameTimer'
 import { ResultScreen } from './presentation/components/ResultScreen/ResultScreen'
 import { WinPatternOverlay } from './presentation/components/WinPatternOverlay/WinPatternOverlay'
 import { WinMovieOverlay } from './presentation/components/WinMovieOverlay/WinMovieOverlay'
@@ -38,6 +39,7 @@ function App() {
       <ResultScreen
         records={game.winRecords}
         settings={game.gameSettings}
+        elapsedSeconds={game.elapsedSeconds}
         onReplay={game.reset}
       />
     )
@@ -45,6 +47,7 @@ function App() {
 
   return (
     <main className="game-shell">
+      {!isIdle && <GameTimer elapsedSeconds={game.elapsedSeconds} />}
       {isIdle && (
         <GameSettingsModal
           probabilityPercent={game.probabilityPercent}

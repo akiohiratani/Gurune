@@ -76,6 +76,7 @@ export function useLotteryGame(
   // 777音源の終了をPresentationへ通知し、固定秒数ではなく実再生終了で画面を進めます。
   const [isWinBreakdownAudioComplete, setIsWinBreakdownAudioComplete] = useState(true)
   const [winRecords, setWinRecords] = useState<WinRecord[]>([])
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
   // Result描画に使用するため、開始時に固定した設定をrefとは別の描画用stateにも保持します。
   const [gameSettings, setGameSettings] = useState<Readonly<GameSettings> | null>(null)
   const sessionRef = useRef<GameSession | null>(null)
@@ -87,6 +88,12 @@ export function useLotteryGame(
   const winBreakdownSequenceRef = useRef(0)
   // animationstartの重複通知でも×3音源を複数系列で開始しないためのガードです。
   const isWinMultiplierAudioStartedRef = useRef(false)
+  const gameStartedAtRef = useRef<number | null>(null)
+
+  const updateElapsedSeconds = useCallback(() => {
+    if (gameStartedAtRef.current === null) return
+    setElapsedSeconds(Math.floor((Date.now() - gameStartedAtRef.current) / 1000))
+  }, [])
 
   const startGame = useMemo(
     () => new StartGameUseCase(lotteryFactory, randomSource),
@@ -144,6 +151,14 @@ export function useLotteryGame(
     }
   }, [gameAudio])
 
+  useEffect(() => {
+    if (status === 'idle' || status === 'finished' || gameStartedAtRef.current === null) return
+
+    updateElapsedSeconds()
+    const timer = window.setInterval(updateElapsedSeconds, 250)
+    return () => window.clearInterval(timer)
+  }, [status, updateElapsedSeconds])
+
   const start = useCallback(async () => {
     if (status !== 'idle' || startingRef.current) return
     const result = startGame.execute(probabilityPercent, patternColorSelection)
@@ -182,6 +197,8 @@ export function useLotteryGame(
     setHolds(createHolds())
     setCountdownVisibleIndex(-1)
     setCurrentIndex(0)
+    gameStartedAtRef.current = Date.now()
+    setElapsedSeconds(0)
     setStatus('running')
     startingRef.current = false
   }, [gameAudio, patternColorSelection, probabilityPercent, startGame, status])
@@ -190,6 +207,8 @@ export function useLotteryGame(
     gameAudio.reset()
     startingRef.current = false
     sessionRef.current = null
+    gameStartedAtRef.current = null
+    setElapsedSeconds(0)
     setGameSettings(null)
     setStatus('idle')
     setError(null)
@@ -336,11 +355,12 @@ export function useLotteryGame(
     const timer = window.setTimeout(() => {
       setPresentationPath(null)
       setPresentationResult(null)
+      updateElapsedSeconds()
       setStatus('finished')
     }, gameConfig.resultPresentationMs)
 
     return () => window.clearTimeout(timer)
-  }, [presentationResult, status, winMovieFlow])
+  }, [presentationResult, status, updateElapsedSeconds, winMovieFlow])
 
   const finishWinBreakdown = useCallback((currentStatus: GameStatus) => {
     // Application層に現在状態を検証させ、重複完了による二重抽選を防ぎます。
@@ -474,6 +494,7 @@ export function useLotteryGame(
     winMultiplier,
     isWinBreakdownAudioComplete,
     winRecords,
+    elapsedSeconds,
     // Resultにはゲーム開始時に固定した色・確率設定をそのまま渡します。
     gameSettings,
     canStart: status === 'idle' && probabilityValidation.valid && patternColorValidation.valid,

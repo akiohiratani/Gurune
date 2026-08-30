@@ -2,6 +2,36 @@
   min-height: 100vh;
 }
 
+.game-timer {
+  position: fixed;
+  z-index: 30;
+  top: clamp(14px, 3vw, 28px);
+  right: clamp(14px, 3vw, 28px);
+  min-width: 132px;
+  padding: 10px 14px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  gap: 10px;
+  border: 2px solid var(--paper);
+  background: rgba(23, 25, 20, 0.9);
+  color: var(--paper);
+  box-shadow: 4px 4px 0 var(--acid);
+  font-variant-numeric: tabular-nums;
+}
+
+.game-timer span {
+  color: var(--acid);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.game-timer strong {
+  font: 900 24px/1 'Arial Narrow', sans-serif;
+  letter-spacing: 1px;
+}
+
 .settings-modal-backdrop {
   position: fixed;
   z-index: 20;
@@ -711,6 +741,31 @@
 .result-total strong {
   margin-left: 10px;
   font-size: 30px;
+}
+
+.result-time {
+  width: fit-content;
+  min-width: 230px;
+  margin: 14px 0 0;
+  padding: 14px 18px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 20px;
+  border: 2px solid var(--ink);
+  background: var(--paper);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.result-time span {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.result-time strong {
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
 }
 
 .result-reset {

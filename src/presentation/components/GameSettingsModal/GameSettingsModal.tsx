@@ -51,12 +51,6 @@ export function GameSettingsModal({
           onChange={onProbabilityChange}
         />
 
-        <PatternColorSetting
-          value={patternColorSelection}
-          error={patternColorError}
-          onChange={onPatternColorChange}
-        />
-
         <div className="continuation-rate" aria-live="polite">
           <span>3回抽選時の継続率</span>
           <strong>
@@ -64,6 +58,12 @@ export function GameSettingsModal({
           </strong>
           <small>1 − (1 − 1回あたりの当選確率)³</small>
         </div>
+
+        <PatternColorSetting
+          value={patternColorSelection}
+          error={patternColorError}
+          onChange={onPatternColorChange}
+        />
 
         <button
           type="button"

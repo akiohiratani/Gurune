@@ -6,10 +6,12 @@ import {
   type WinColor,
   type WinRecord,
 } from '../../../domain/game/Game'
+import { getGameDurationParts } from '../../gameTime'
 
 type ResultScreenProps = {
   records: WinRecord[]
   settings: Readonly<GameSettings> | null
+  elapsedSeconds: number
   onReplay: () => void
 }
 
@@ -19,7 +21,9 @@ const colorLabels: Record<WinColor, string> = {
   yellow: '黄',
 }
 
-export function ResultScreen({ records, settings, onReplay }: ResultScreenProps) {
+export function ResultScreen({ records, settings, elapsedSeconds, onReplay }: ResultScreenProps) {
+  const duration = getGameDurationParts(elapsedSeconds)
+
   return (
     <section className="result-screen" aria-labelledby="result-title">
       <div className="result-heading">
@@ -71,6 +75,10 @@ export function ResultScreen({ records, settings, onReplay }: ResultScreenProps)
       <p className="result-total">
         {/* TOTALも図柄別表示と同じDomainルールで倍率合計します。 */}
         TOTAL WINS <strong>{countWins(records)}</strong>
+      </p>
+      <p className="result-time">
+        <span>PLAY TIME</span>
+        <strong>{duration.minutes}分 {duration.seconds}秒</strong>
       </p>
       <button type="button" className="primary-action result-reset" onClick={onReplay}>
         <span>もう一度プレイ</span>
