@@ -876,6 +876,181 @@
   margin-top: 28px;
 }
 
+.ranking-tiebreak-overlay {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  padding: clamp(28px, 5vw, 64px);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 52%, rgba(216, 255, 62, 0.22), transparent 42%),
+    #11130f url('/background.png') center / cover no-repeat;
+  color: var(--paper);
+}
+
+.ranking-tiebreak-heading {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+}
+
+.ranking-tiebreak-heading p {
+  margin: 0 0 8px;
+  color: var(--acid);
+  font-size: clamp(11px, 1.5vw, 16px);
+  font-weight: 900;
+  letter-spacing: 0.18em;
+}
+
+.ranking-tiebreak-heading h2 {
+  margin: 0;
+  font-size: clamp(48px, 9vw, 112px);
+  line-height: 0.95;
+  text-shadow: 0 5px 0 var(--ink), 0 0 30px rgba(216, 255, 62, 0.55);
+}
+
+.ranking-tiebreak-candidates {
+  width: min(94vw, 1320px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(10px, 2.2vw, 34px);
+}
+
+.ranking-tiebreak-candidate {
+  width: min(25vw, 270px);
+  aspect-ratio: 1;
+  margin: 0;
+  padding: clamp(10px, 1.5vw, 20px);
+  display: grid;
+  place-items: center;
+  border: clamp(3px, 0.45vw, 7px) solid rgba(245, 244, 235, 0.3);
+  background: rgba(17, 19, 15, 0.72);
+  opacity: 0.55;
+  transform: scale(0.88);
+  filter: saturate(0.55) brightness(0.7);
+  transition: transform 90ms ease-out, opacity 90ms, filter 90ms, box-shadow 90ms;
+}
+
+.ranking-tiebreak-candidate img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.ranking-tiebreak-candidate.is-focused {
+  border-color: #fff;
+  opacity: 1;
+  transform: scale(1);
+  filter: saturate(1.2) brightness(1.18);
+  box-shadow:
+    0 0 0 5px var(--acid),
+    0 0 26px 10px var(--acid),
+    inset 0 0 28px rgba(255, 255, 255, 0.55);
+}
+
+.ranking-tiebreak-candidate.is-decided {
+  transform: scale(1.13);
+  animation: ranking-winner-pulse 650ms ease-in-out infinite alternate;
+  box-shadow:
+    0 0 0 8px #fff,
+    0 0 40px 18px var(--acid),
+    0 0 90px 35px rgba(216, 255, 62, 0.55);
+}
+
+.ranking-tiebreak-result {
+  min-height: 72px;
+  padding: 14px 28px;
+  display: grid;
+  place-items: center;
+  border: 3px solid var(--ink);
+  background: var(--acid);
+  color: var(--ink);
+  font-size: clamp(24px, 4vw, 50px);
+  font-weight: 900;
+  opacity: 0;
+  transform: translateY(18px) scale(0.92);
+  box-shadow: 8px 8px 0 var(--coral);
+}
+
+.ranking-tiebreak-result.is-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition: opacity 250ms, transform 350ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes ranking-winner-pulse {
+  to { transform: scale(1.18); filter: saturate(1.35) brightness(1.35); }
+}
+
+.result-standing {
+  margin-top: 26px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.result-standing-card {
+  min-height: 170px;
+  padding: clamp(14px, 2.5vw, 24px);
+  display: grid;
+  grid-template-columns: auto minmax(85px, 150px) 1fr;
+  align-items: center;
+  gap: clamp(12px, 2vw, 24px);
+  border: 3px solid var(--ink);
+  background: var(--paper);
+  box-shadow: 7px 7px 0 var(--ink);
+}
+
+.result-standing-card > span {
+  align-self: stretch;
+  padding: 8px 12px;
+  display: grid;
+  place-items: center;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: clamp(18px, 3vw, 32px);
+  font-weight: 900;
+  writing-mode: vertical-rl;
+}
+
+.result-standing-card img {
+  width: 100%;
+  max-height: 130px;
+  object-fit: contain;
+}
+
+.result-standing-card strong,
+.result-standing-card small,
+.result-standing-card em {
+  display: block;
+}
+
+.result-standing-card strong {
+  font-size: clamp(44px, 7vw, 76px);
+  line-height: 1;
+}
+
+.result-standing-card small {
+  margin-top: 5px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.result-standing-card em {
+  width: fit-content;
+  margin-top: 10px;
+  padding: 5px 8px;
+  background: var(--acid);
+  color: var(--ink);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+}
+
 .result-prize {
   position: relative;
   margin-top: 26px;
@@ -1054,6 +1229,22 @@
   }
 
   .result-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ranking-tiebreak-overlay {
+    padding: 24px 12px;
+  }
+
+  .ranking-tiebreak-candidates {
+    gap: 7px;
+  }
+
+  .ranking-tiebreak-candidate {
+    padding: 5px;
+  }
+
+  .result-standing {
     grid-template-columns: 1fr;
   }
 

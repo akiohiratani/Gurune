@@ -27,6 +27,8 @@ export type GameStatus =
   | 'revealingWinBreakdown'
   | 'prizeRoulette'
   | 'prizeResult'
+  | 'FIRST_PLACE_TIEBREAK'
+  | 'LAST_PLACE_TIEBREAK'
   | 'finished'
 export type HoldResult = 'pending' | 'hit' | 'miss'
 
@@ -48,7 +50,7 @@ export const NORMAL_WIN_MULTIPLIER = 1 as const
 export const SPECIAL_WIN_MULTIPLIER = 3 as const
 export const PATTERN_NUMBERS = [1, 2, 3, 4, 5, 6] as const
 export const WIN_COLORS = ['red', 'blue', 'yellow'] as const
-export const WIN_UPGRADE_PROBABILITIES = [0.5, 0.3, 0.2] as const
+export const WIN_UPGRADE_PROBABILITIES = [0.35, 0.3, 0.25] as const
 
 export type WinMultiplier =
   | typeof NORMAL_WIN_MULTIPLIER

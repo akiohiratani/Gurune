@@ -7,6 +7,7 @@ import {
   type WinRecord,
 } from '../../../domain/game/Game'
 import type { PrizeResult } from '../../../domain/prize/Prize'
+import type { GameStanding, PlaceResult } from '../../../domain/ranking/GameRanking'
 import { getGameDurationParts } from '../../gameTime'
 
 type ResultScreenProps = {
@@ -14,6 +15,7 @@ type ResultScreenProps = {
   settings: Readonly<GameSettings> | null
   elapsedSeconds: number
   prizeResult: PrizeResult | null
+  standing: GameStanding | null
   onReplay: () => void
 }
 
@@ -28,6 +30,7 @@ export function ResultScreen({
   settings,
   elapsedSeconds,
   prizeResult,
+  standing,
   onReplay,
 }: ResultScreenProps) {
   const duration = getGameDurationParts(elapsedSeconds)
@@ -45,6 +48,13 @@ export function ResultScreen({
           <span>今回獲得した景品</span>
           <strong>{prizeResult.name}</strong>
           <small>PRIZE {prizeResult.prizeNumber}</small>
+        </div>
+      )}
+
+      {standing && (
+        <div className="result-standing" aria-label="最終順位">
+          <StandingCard label="優勝" result={standing.firstPlace} />
+          <StandingCard label="最下位" result={standing.lastPlace} />
         </div>
       )}
 
@@ -101,5 +111,22 @@ export function ResultScreen({
         <span aria-hidden="true">→</span>
       </button>
     </section>
+  )
+}
+
+function StandingCard({ label, result }: { label: string; result: PlaceResult }) {
+  return (
+    <article className="result-standing-card">
+      <span>{label}</span>
+      <img
+        src={`/pattern/member/${result.patternNumber}.png`}
+        alt={`${label} 図柄${result.patternNumber}`}
+      />
+      <div>
+        <strong>{result.total}</strong>
+        <small>当選総数</small>
+        {result.decidedByTiebreak && <em>追加抽選で決定</em>}
+      </div>
+    </article>
   )
 }

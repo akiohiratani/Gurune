@@ -44,7 +44,7 @@ export class StartGameUseCase {
       return { ok: false, message: '景品1〜6をすべて20文字以内で入力してください' }
     }
 
-    // Fisher-Yates法で50%・30%・20%を重複なく並べ替えます。
+    // Fisher-Yates法で35%・30%・25%を重複なく並べ替えます。
     // このユースケースはゲーム開始時に一度だけ実行されるため、割り当てはゲーム中固定です。
     const shuffledProbabilities: WinUpgradeProbability[] = [...WIN_UPGRADE_PROBABILITIES]
     for (let index = shuffledProbabilities.length - 1; index > 0; index -= 1) {

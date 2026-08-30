@@ -12,7 +12,7 @@ export type RevealPrizeTransition = {
 }
 
 export type CompletePrizeRouletteTransition = {
-  status: 'finished'
+  readyForRanking: true
 }
 
 /** 全ゲーム抽選の終了後に、景品抽選とResultまでの状態遷移を管理します。 */
@@ -43,6 +43,6 @@ export class PrizeRouletteFlowUseCase {
 
   complete(currentStatus: GameStatus): CompletePrizeRouletteTransition | null {
     if (currentStatus !== 'prizeResult') return null
-    return { status: 'finished' }
+    return { readyForRanking: true }
   }
 }

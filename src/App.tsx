@@ -9,6 +9,7 @@ import { GameSettingsModal } from './presentation/components/GameSettingsModal/G
 import { GameTimer } from './presentation/components/GameTimer/GameTimer'
 import { PrizeRouletteOverlay } from './presentation/components/PrizeRouletteOverlay/PrizeRouletteOverlay'
 import { ResultScreen } from './presentation/components/ResultScreen/ResultScreen'
+import { RankingTiebreakOverlay } from './presentation/components/RankingTiebreakOverlay/RankingTiebreakOverlay'
 import { WinPatternOverlay } from './presentation/components/WinPatternOverlay/WinPatternOverlay'
 import { WinMovieOverlay } from './presentation/components/WinMovieOverlay/WinMovieOverlay'
 import { WinBreakdownOverlay } from './presentation/components/WinBreakdownOverlay/WinBreakdownOverlay'
@@ -42,6 +43,7 @@ function App() {
         settings={game.gameSettings}
         elapsedSeconds={game.elapsedSeconds}
         prizeResult={game.prizeResult}
+        standing={game.gameStanding}
         onReplay={game.reset}
       />
     )
@@ -93,6 +95,16 @@ function App() {
             result={game.prizeResult}
             phase={game.status}
             onStopped={game.completePrizeRoulette}
+          />
+        )}
+      {(game.status === 'FIRST_PLACE_TIEBREAK' || game.status === 'LAST_PLACE_TIEBREAK')
+        && game.rankingRound && (
+          <RankingTiebreakOverlay
+            key={`${game.rankingRound.kind}-${game.rankingRound.selectedPattern}`}
+            kind={game.rankingRound.kind}
+            candidates={game.rankingRound.candidates}
+            selectedPattern={game.rankingRound.selectedPattern}
+            onComplete={game.completeRankingTiebreak}
           />
         )}
 

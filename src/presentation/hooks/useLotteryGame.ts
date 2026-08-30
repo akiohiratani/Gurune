@@ -13,6 +13,10 @@ import { StartGameUseCase } from '../../application/usecases/StartGameUseCase'
 import { WinMovieFlowUseCase } from '../../application/usecases/WinMovieFlowUseCase'
 import { WinBreakdownFlowUseCase } from '../../application/usecases/WinBreakdownFlowUseCase'
 import { PrizeRouletteFlowUseCase } from '../../application/usecases/PrizeRouletteFlowUseCase'
+import {
+  RankingFlowUseCase,
+  type RankingFlowState,
+} from '../../application/usecases/RankingFlowUseCase'
 import { gameConfig } from '../../config/gameConfig'
 import {
   PATTERN_NUMBERS,
@@ -30,6 +34,7 @@ import {
   type WinMultiplier,
   type WinRecord,
 } from '../../domain/game/Game'
+import type { GameStanding } from '../../domain/ranking/GameRanking'
 import {
   createEmptyPrizeInputs,
   validatePrizeInputs,
@@ -86,6 +91,8 @@ export function useLotteryGame(
   const [isWinBreakdownAudioComplete, setIsWinBreakdownAudioComplete] = useState(true)
   const [winRecords, setWinRecords] = useState<WinRecord[]>([])
   const [prizeResult, setPrizeResult] = useState<PrizeResult | null>(null)
+  const [rankingFlowState, setRankingFlowState] = useState<RankingFlowState | null>(null)
+  const [gameStanding, setGameStanding] = useState<GameStanding | null>(null)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
   // Result描画に使用するため、開始時に固定した設定をrefとは別の描画用stateにも保持します。
   const [gameSettings, setGameSettings] = useState<Readonly<GameSettings> | null>(null)
@@ -125,6 +132,10 @@ export function useLotteryGame(
   )
   const prizeRouletteFlow = useMemo(
     () => new PrizeRouletteFlowUseCase(randomSource),
+    [randomSource],
+  )
+  const rankingFlow = useMemo(
+    () => new RankingFlowUseCase(randomSource),
     [randomSource],
   )
   const probabilityValidation = useMemo(
@@ -217,6 +228,8 @@ export function useLotteryGame(
     pendingWinRef.current = null
     setWinRecords([])
     setPrizeResult(null)
+    setRankingFlowState(null)
+    setGameStanding(null)
     setHolds(createHolds())
     setCountdownVisibleIndex(-1)
     setCurrentIndex(0)
@@ -251,6 +264,8 @@ export function useLotteryGame(
     winPlaybackRef.current = null
     setWinRecords([])
     setPrizeResult(null)
+    setRankingFlowState(null)
+    setGameStanding(null)
   }, [gameAudio])
 
   useEffect(() => {
@@ -401,11 +416,23 @@ export function useLotteryGame(
       const transition = prizeRouletteFlow.complete(status)
       if (!transition) return
       updateElapsedSeconds()
-      setStatus(transition.status)
+      const rankingState = rankingFlow.start(winRecords)
+      setRankingFlowState(rankingState)
+      setGameStanding(rankingFlow.toStanding(rankingState))
+      setStatus(rankingState.status)
     }, gameConfig.prizeResultDisplayMs)
 
     return () => window.clearTimeout(timer)
-  }, [prizeRouletteFlow, status, updateElapsedSeconds])
+  }, [prizeRouletteFlow, rankingFlow, status, updateElapsedSeconds, winRecords])
+
+  const completeRankingTiebreak = useCallback(() => {
+    if (!rankingFlowState) return
+    const nextState = rankingFlow.completeRound(rankingFlowState)
+    setRankingFlowState(nextState)
+    setGameStanding(rankingFlow.toStanding(nextState))
+    setStatus(nextState.status)
+    if (nextState.status === 'finished') updateElapsedSeconds()
+  }, [rankingFlow, rankingFlowState, updateElapsedSeconds])
 
   const finishWinBreakdown = useCallback((currentStatus: GameStatus) => {
     // Application層に現在状態を検証させ、重複完了による二重抽選を防ぎます。
@@ -552,6 +579,8 @@ export function useLotteryGame(
     isWinBreakdownAudioComplete,
     winRecords,
     prizeResult,
+    rankingRound: rankingFlowState?.round ?? null,
+    gameStanding,
     elapsedSeconds,
     // Resultにはゲーム開始時に固定した色・確率設定をそのまま渡します。
     gameSettings,
@@ -568,5 +597,6 @@ export function useLotteryGame(
     completeWinMovie,
     startWinMultiplierPresentation,
     completePrizeRoulette,
+    completeRankingTiebreak,
   }
 }
