@@ -1,5 +1,6 @@
 import type { Lottery } from '../lottery/Lottery'
 import type { Probability } from '../probability'
+import type { PrizeList } from '../prize/Prize'
 
 export type GameSettings = {
   hitProbability: Probability
@@ -7,6 +8,8 @@ export type GameSettings = {
   patternColors: Readonly<PatternColorAssignments>
   /** ゲーム開始時に一度だけシャッフルされた、色ごとの×3昇格確率です。 */
   colorUpgradeProbabilities: Readonly<ColorUpgradeProbabilities>
+  /** 開始時に検証・固定された、均等抽選対象の6景品です。 */
+  prizes: PrizeList
 }
 
 export type GameSession = {
@@ -22,6 +25,8 @@ export type GameStatus =
   | 'celebrating'
   | 'playingWinMovie'
   | 'revealingWinBreakdown'
+  | 'prizeRoulette'
+  | 'prizeResult'
   | 'finished'
 export type HoldResult = 'pending' | 'hit' | 'miss'
 

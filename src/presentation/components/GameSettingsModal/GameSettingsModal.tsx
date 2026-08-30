@@ -3,7 +3,9 @@ import type {
   PatternNumber,
   WinColor,
 } from '../../../domain/game/Game'
+import type { PrizeInputValues, PrizeNumber } from '../../../domain/prize/Prize'
 import { PatternColorSetting } from '../PatternColorSetting/PatternColorSetting'
+import { PrizeSetting } from '../PrizeSetting/PrizeSetting'
 import { ProbabilitySetting } from '../ProbabilitySetting/ProbabilitySetting'
 
 type GameSettingsModalProps = {
@@ -11,10 +13,13 @@ type GameSettingsModalProps = {
   continuationRatePercent: number | null
   patternColorSelection: Readonly<PatternColorSelection>
   patternColorError: string | null
+  prizeInputs: Readonly<PrizeInputValues>
+  prizeError: string | null
   error: string | null
   canStart: boolean
   onProbabilityChange: (value: string) => void
   onPatternColorChange: (patternNumber: PatternNumber, color: WinColor | null) => void
+  onPrizeChange: (prizeNumber: PrizeNumber, value: string) => void
   onStart: () => void
 }
 
@@ -23,10 +28,13 @@ export function GameSettingsModal({
   continuationRatePercent,
   patternColorSelection,
   patternColorError,
+  prizeInputs,
+  prizeError,
   error,
   canStart,
   onProbabilityChange,
   onPatternColorChange,
+  onPrizeChange,
   onStart,
 }: GameSettingsModalProps) {
   return (
@@ -63,6 +71,12 @@ export function GameSettingsModal({
           value={patternColorSelection}
           error={patternColorError}
           onChange={onPatternColorChange}
+        />
+
+        <PrizeSetting
+          value={prizeInputs}
+          error={prizeError}
+          onChange={onPrizeChange}
         />
 
         <button

@@ -6,12 +6,14 @@ import {
   type WinColor,
   type WinRecord,
 } from '../../../domain/game/Game'
+import type { PrizeResult } from '../../../domain/prize/Prize'
 import { getGameDurationParts } from '../../gameTime'
 
 type ResultScreenProps = {
   records: WinRecord[]
   settings: Readonly<GameSettings> | null
   elapsedSeconds: number
+  prizeResult: PrizeResult | null
   onReplay: () => void
 }
 
@@ -21,7 +23,13 @@ const colorLabels: Record<WinColor, string> = {
   yellow: '黄',
 }
 
-export function ResultScreen({ records, settings, elapsedSeconds, onReplay }: ResultScreenProps) {
+export function ResultScreen({
+  records,
+  settings,
+  elapsedSeconds,
+  prizeResult,
+  onReplay,
+}: ResultScreenProps) {
   const duration = getGameDurationParts(elapsedSeconds)
 
   return (
@@ -31,6 +39,14 @@ export function ResultScreen({ records, settings, elapsedSeconds, onReplay }: Re
         <h2 id="result-title">抽選結果</h2>
         <p>当選した図柄ごとの回数</p>
       </div>
+
+      {prizeResult && (
+        <div className="result-prize">
+          <span>今回獲得した景品</span>
+          <strong>{prizeResult.name}</strong>
+          <small>PRIZE {prizeResult.prizeNumber}</small>
+        </div>
+      )}
 
       <div className="result-grid">
         {PATTERN_NUMBERS.map((patternNumber) => {

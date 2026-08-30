@@ -6,6 +6,7 @@ import {
   type PatternColorSelection,
   type WinUpgradeProbability,
 } from '../../domain/game/Game'
+import { validatePrizeInputs } from '../../domain/prize/Prize'
 import type { LotteryFactory } from '../ports/LotteryFactory'
 import type { RandomSource } from '../ports/RandomSource'
 import { parseProbabilityPercent } from '../probabilityPercent'
@@ -26,6 +27,7 @@ export class StartGameUseCase {
   execute(
     probabilityPercent: string,
     patternColorSelection: Readonly<PatternColorSelection>,
+    prizeInputs: readonly string[],
   ): StartGameResult {
     const parsed = parseProbabilityPercent(probabilityPercent)
     if (!parsed.valid) {
@@ -35,6 +37,11 @@ export class StartGameUseCase {
     const colorValidation = validatePatternColorSelection(patternColorSelection)
     if (!colorValidation.valid) {
       return { ok: false, message: '全図柄を割り当て、赤・青・黄をすべて使用してください' }
+    }
+
+    const prizeValidation = validatePrizeInputs(prizeInputs)
+    if (!prizeValidation.valid) {
+      return { ok: false, message: '景品1〜6をすべて20文字以内で入力してください' }
     }
 
     // Fisher-Yates法で50%・30%・20%を重複なく並べ替えます。
@@ -56,6 +63,7 @@ export class StartGameUseCase {
       hitProbability: parsed.probability,
       patternColors: Object.freeze({ ...colorValidation.assignments }),
       colorUpgradeProbabilities,
+      prizes: Object.freeze([...prizeValidation.prizes]) as typeof prizeValidation.prizes,
     })
 
     return {

@@ -12,6 +12,7 @@ import { SelectWinPatternUseCase } from '../../application/usecases/SelectWinPat
 import { StartGameUseCase } from '../../application/usecases/StartGameUseCase'
 import { WinMovieFlowUseCase } from '../../application/usecases/WinMovieFlowUseCase'
 import { WinBreakdownFlowUseCase } from '../../application/usecases/WinBreakdownFlowUseCase'
+import { PrizeRouletteFlowUseCase } from '../../application/usecases/PrizeRouletteFlowUseCase'
 import { gameConfig } from '../../config/gameConfig'
 import {
   PATTERN_NUMBERS,
@@ -29,6 +30,13 @@ import {
   type WinMultiplier,
   type WinRecord,
 } from '../../domain/game/Game'
+import {
+  createEmptyPrizeInputs,
+  validatePrizeInputs,
+  type PrizeInputValues,
+  type PrizeNumber,
+  type PrizeResult,
+} from '../../domain/prize/Prize'
 
 function createHolds(): Hold[] {
   return Array.from({ length: gameConfig.initialCount }, (_, index) => ({
@@ -63,6 +71,7 @@ export function useLotteryGame(
   const [patternColorSelection, setPatternColorSelection] = useState<PatternColorSelection>(
     createEmptyPatternColorSelection,
   )
+  const [prizeInputs, setPrizeInputs] = useState<PrizeInputValues>(createEmptyPrizeInputs)
   const [error, setError] = useState<string | null>(null)
   const [holds, setHolds] = useState<Hold[]>(createHolds)
   const [currentIndex, setCurrentIndex] = useState(-1)
@@ -76,6 +85,7 @@ export function useLotteryGame(
   // 777音源の終了をPresentationへ通知し、固定秒数ではなく実再生終了で画面を進めます。
   const [isWinBreakdownAudioComplete, setIsWinBreakdownAudioComplete] = useState(true)
   const [winRecords, setWinRecords] = useState<WinRecord[]>([])
+  const [prizeResult, setPrizeResult] = useState<PrizeResult | null>(null)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
   // Result描画に使用するため、開始時に固定した設定をrefとは別の描画用stateにも保持します。
   const [gameSettings, setGameSettings] = useState<Readonly<GameSettings> | null>(null)
@@ -113,6 +123,10 @@ export function useLotteryGame(
     () => new WinBreakdownFlowUseCase(randomSource),
     [randomSource],
   )
+  const prizeRouletteFlow = useMemo(
+    () => new PrizeRouletteFlowUseCase(randomSource),
+    [randomSource],
+  )
   const probabilityValidation = useMemo(
     () => parseProbabilityPercent(probabilityPercent),
     [probabilityPercent],
@@ -121,6 +135,14 @@ export function useLotteryGame(
     () => validatePatternColorSelection(patternColorSelection),
     [patternColorSelection],
   )
+  const prizeValidation = useMemo(() => validatePrizeInputs(prizeInputs), [prizeInputs])
+  const prizeError = useMemo(() => {
+    if (prizeValidation.valid) return null
+    if (prizeValidation.overLimitPrizeNumbers.length > 0) {
+      return `20文字を超えている景品: ${prizeValidation.overLimitPrizeNumbers.join('・')}`
+    }
+    return `未入力の景品: ${prizeValidation.emptyPrizeNumbers.join('・')}`
+  }, [prizeValidation])
   const patternColorError = useMemo(() => {
     if (patternColorValidation.valid) return null
 
@@ -161,7 +183,7 @@ export function useLotteryGame(
 
   const start = useCallback(async () => {
     if (status !== 'idle' || startingRef.current) return
-    const result = startGame.execute(probabilityPercent, patternColorSelection)
+    const result = startGame.execute(probabilityPercent, patternColorSelection, prizeInputs)
     if (!result.ok) {
       setError(result.message)
       return
@@ -194,6 +216,7 @@ export function useLotteryGame(
     isWinMultiplierAudioStartedRef.current = false
     pendingWinRef.current = null
     setWinRecords([])
+    setPrizeResult(null)
     setHolds(createHolds())
     setCountdownVisibleIndex(-1)
     setCurrentIndex(0)
@@ -201,7 +224,7 @@ export function useLotteryGame(
     setElapsedSeconds(0)
     setStatus('running')
     startingRef.current = false
-  }, [gameAudio, patternColorSelection, probabilityPercent, startGame, status])
+  }, [gameAudio, patternColorSelection, prizeInputs, probabilityPercent, startGame, status])
 
   const reset = useCallback(() => {
     gameAudio.reset()
@@ -227,6 +250,7 @@ export function useLotteryGame(
     pendingWinRef.current = null
     winPlaybackRef.current = null
     setWinRecords([])
+    setPrizeResult(null)
   }, [gameAudio])
 
   useEffect(() => {
@@ -355,12 +379,33 @@ export function useLotteryGame(
     const timer = window.setTimeout(() => {
       setPresentationPath(null)
       setPresentationResult(null)
-      updateElapsedSeconds()
-      setStatus('finished')
+      const transition = prizeRouletteFlow.start(status, sessionRef.current?.settings ?? null)
+      if (!transition) return
+      setPrizeResult(transition.result)
+      setStatus(transition.status)
     }, gameConfig.resultPresentationMs)
 
     return () => window.clearTimeout(timer)
-  }, [presentationResult, status, updateElapsedSeconds, winMovieFlow])
+  }, [presentationResult, prizeRouletteFlow, status, winMovieFlow])
+
+  const completePrizeRoulette = useCallback(() => {
+    const transition = prizeRouletteFlow.reveal(status)
+    if (!transition) return
+    setStatus(transition.status)
+  }, [prizeRouletteFlow, status])
+
+  useEffect(() => {
+    if (status !== 'prizeResult') return
+
+    const timer = window.setTimeout(() => {
+      const transition = prizeRouletteFlow.complete(status)
+      if (!transition) return
+      updateElapsedSeconds()
+      setStatus(transition.status)
+    }, gameConfig.prizeResultDisplayMs)
+
+    return () => window.clearTimeout(timer)
+  }, [prizeRouletteFlow, status, updateElapsedSeconds])
 
   const finishWinBreakdown = useCallback((currentStatus: GameStatus) => {
     // Application層に現在状態を検証させ、重複完了による二重抽選を防ぎます。
@@ -478,11 +523,23 @@ export function useLotteryGame(
     setError(null)
   }, [status])
 
+  const updatePrize = useCallback((prizeNumber: PrizeNumber, value: string) => {
+    if (status !== 'idle') return
+    setPrizeInputs((current) => {
+      const next = [...current] as PrizeInputValues
+      next[prizeNumber - 1] = Array.from(value).slice(0, 20).join('')
+      return next
+    })
+    setError(null)
+  }, [status])
+
   return {
     status,
     probabilityPercent,
     patternColorSelection,
     patternColorError,
+    prizeInputs,
+    prizeError,
     error,
     holds,
     currentIndex,
@@ -494,16 +551,22 @@ export function useLotteryGame(
     winMultiplier,
     isWinBreakdownAudioComplete,
     winRecords,
+    prizeResult,
     elapsedSeconds,
     // Resultにはゲーム開始時に固定した色・確率設定をそのまま渡します。
     gameSettings,
-    canStart: status === 'idle' && probabilityValidation.valid && patternColorValidation.valid,
+    canStart: status === 'idle'
+      && probabilityValidation.valid
+      && patternColorValidation.valid
+      && prizeValidation.valid,
     continuationRatePercent: continuationRate.valid ? continuationRate.percent : null,
     updateProbability,
     updatePatternColor,
+    updatePrize,
     start,
     reset,
     completeWinMovie,
     startWinMultiplierPresentation,
+    completePrizeRoulette,
   }
 }

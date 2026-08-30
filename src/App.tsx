@@ -7,6 +7,7 @@ import { RandomWinMovieSelector } from './infrastructure/movie/RandomWinMovieSel
 import { MathRandomSource } from './infrastructure/random/MathRandomSource'
 import { GameSettingsModal } from './presentation/components/GameSettingsModal/GameSettingsModal'
 import { GameTimer } from './presentation/components/GameTimer/GameTimer'
+import { PrizeRouletteOverlay } from './presentation/components/PrizeRouletteOverlay/PrizeRouletteOverlay'
 import { ResultScreen } from './presentation/components/ResultScreen/ResultScreen'
 import { WinPatternOverlay } from './presentation/components/WinPatternOverlay/WinPatternOverlay'
 import { WinMovieOverlay } from './presentation/components/WinMovieOverlay/WinMovieOverlay'
@@ -40,6 +41,7 @@ function App() {
         records={game.winRecords}
         settings={game.gameSettings}
         elapsedSeconds={game.elapsedSeconds}
+        prizeResult={game.prizeResult}
         onReplay={game.reset}
       />
     )
@@ -54,10 +56,13 @@ function App() {
           continuationRatePercent={game.continuationRatePercent}
           patternColorSelection={game.patternColorSelection}
           patternColorError={game.patternColorError}
+          prizeInputs={game.prizeInputs}
+          prizeError={game.prizeError}
           error={game.error}
           canStart={game.canStart}
           onProbabilityChange={game.updateProbability}
           onPatternColorChange={game.updatePatternColor}
+          onPrizeChange={game.updatePrize}
           onStart={game.start}
         />
       )}
@@ -80,6 +85,16 @@ function App() {
           onMultiplierStarted={game.startWinMultiplierPresentation}
         />
       )}
+      {(game.status === 'prizeRoulette' || game.status === 'prizeResult')
+        && game.gameSettings
+        && game.prizeResult && (
+          <PrizeRouletteOverlay
+            prizes={game.gameSettings.prizes}
+            result={game.prizeResult}
+            phase={game.status}
+            onStopped={game.completePrizeRoulette}
+          />
+        )}
 
       <section className="game-stage" aria-label="抽選ゲーム">
         <div className="countdown-display" aria-live="polite" aria-label="抽選カウントダウン">
