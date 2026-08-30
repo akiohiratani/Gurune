@@ -1,13 +1,25 @@
-import { countPatternWins, countWins, type WinRecord } from '../../../domain/game/Game'
+import {
+  PATTERN_NUMBERS,
+  countPatternWins,
+  countWins,
+  type GameSettings,
+  type WinColor,
+  type WinRecord,
+} from '../../../domain/game/Game'
 
 type ResultScreenProps = {
   records: WinRecord[]
+  settings: Readonly<GameSettings> | null
   onReplay: () => void
 }
 
-const patternNumbers = [1, 2, 3, 4, 5, 6]
+const colorLabels: Record<WinColor, string> = {
+  red: '赤',
+  blue: '青',
+  yellow: '黄',
+}
 
-export function ResultScreen({ records, onReplay }: ResultScreenProps) {
+export function ResultScreen({ records, settings, onReplay }: ResultScreenProps) {
   return (
     <section className="result-screen" aria-labelledby="result-title">
       <div className="result-heading">
@@ -17,12 +29,17 @@ export function ResultScreen({ records, onReplay }: ResultScreenProps) {
       </div>
 
       <div className="result-grid">
-        {patternNumbers.map((patternNumber) => {
+        {PATTERN_NUMBERS.map((patternNumber) => {
           const recordsForPattern = records.filter(
             (record) => record.patternNumber === patternNumber,
           )
           // レコード件数ではなく倍率を合計し、×3を3回分として表示します。
           const winCount = countPatternWins(records, patternNumber)
+          // ゲーム開始時に固定された設定を参照し、Result表示で再抽選しません。
+          const color = settings?.patternColors[patternNumber]
+          const upgradeProbability = color
+            ? settings.colorUpgradeProbabilities[color]
+            : null
           return (
             <article className="result-card" key={patternNumber}>
               <img
@@ -31,9 +48,16 @@ export function ResultScreen({ records, onReplay }: ResultScreenProps) {
                 alt={`図柄 ${patternNumber}`}
               />
               <div className="result-count">
+                <span className="result-pattern-name">図柄 {patternNumber}</span>
                 <strong>{winCount}</strong>
                 <span>回当選</span>
               </div>
+              {color && upgradeProbability !== null && (
+                <p className={`result-pattern-setting result-pattern-setting--${color}`}>
+                  <span>{colorLabels[color]}</span>
+                  <strong>×3昇格 {upgradeProbability * 100}%</strong>
+                </p>
+              )}
               {recordsForPattern.length > 0 && (
                 <p className="hit-positions">
                   保留位置: {recordsForPattern.map((record) => record.holdNumber).join('・')}

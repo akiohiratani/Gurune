@@ -14,11 +14,18 @@ import { WinMovieFlowUseCase } from '../../application/usecases/WinMovieFlowUseC
 import { WinBreakdownFlowUseCase } from '../../application/usecases/WinBreakdownFlowUseCase'
 import { gameConfig } from '../../config/gameConfig'
 import {
+  PATTERN_NUMBERS,
   SPECIAL_WIN_MULTIPLIER,
+  createEmptyPatternColorSelection,
+  validatePatternColorSelection,
   type GameSession,
+  type GameSettings,
   type GameStatus,
   type Hold,
   type PendingWin,
+  type PatternColorSelection,
+  type PatternNumber,
+  type WinColor,
   type WinMultiplier,
   type WinRecord,
 } from '../../domain/game/Game'
@@ -30,10 +37,16 @@ function createHolds(): Hold[] {
   }))
 }
 
-function getPatternNumber(imagePath: string): number {
+function getPatternNumber(imagePath: string): PatternNumber {
   const match = imagePath.match(/\/(\d+)\.png$/)
-  return match ? Number(match[1]) : 0
+  const patternNumber = match ? Number(match[1]) : Number.NaN
+  if (PATTERN_NUMBERS.includes(patternNumber as PatternNumber)) {
+    return patternNumber as PatternNumber
+  }
+  throw new Error(`Unknown win pattern image path: ${imagePath}`)
 }
+
+const colorLabels: Record<WinColor, string> = { red: '赤', blue: '青', yellow: '黄' }
 
 export function useLotteryGame(
   lotteryFactory: LotteryFactory,
@@ -45,6 +58,10 @@ export function useLotteryGame(
   const [status, setStatus] = useState<GameStatus>('idle')
   const [probabilityPercent, setProbabilityPercent] = useState(() =>
     probabilityToPercent(gameConfig.defaultHitProbability),
+  )
+  // モーダル上の編集値です。開始時に検証済みコピーをGameSessionへ保存します。
+  const [patternColorSelection, setPatternColorSelection] = useState<PatternColorSelection>(
+    createEmptyPatternColorSelection,
   )
   const [error, setError] = useState<string | null>(null)
   const [holds, setHolds] = useState<Hold[]>(createHolds)
@@ -59,6 +76,8 @@ export function useLotteryGame(
   // 777音源の終了をPresentationへ通知し、固定秒数ではなく実再生終了で画面を進めます。
   const [isWinBreakdownAudioComplete, setIsWinBreakdownAudioComplete] = useState(true)
   const [winRecords, setWinRecords] = useState<WinRecord[]>([])
+  // Result描画に使用するため、開始時に固定した設定をrefとは別の描画用stateにも保持します。
+  const [gameSettings, setGameSettings] = useState<Readonly<GameSettings> | null>(null)
   const sessionRef = useRef<GameSession | null>(null)
   const winPlaybackRef = useRef<AudioPlayback | null>(null)
   const startingRef = useRef(false)
@@ -69,7 +88,10 @@ export function useLotteryGame(
   // animationstartの重複通知でも×3音源を複数系列で開始しないためのガードです。
   const isWinMultiplierAudioStartedRef = useRef(false)
 
-  const startGame = useMemo(() => new StartGameUseCase(lotteryFactory), [lotteryFactory])
+  const startGame = useMemo(
+    () => new StartGameUseCase(lotteryFactory, randomSource),
+    [lotteryFactory, randomSource],
+  )
   const drawHold = useMemo(() => new DrawHoldUseCase(), [])
   const selectWinPattern = useMemo(
     () => new SelectWinPatternUseCase(winPatternSelector),
@@ -80,7 +102,7 @@ export function useLotteryGame(
     [winMovieSelector],
   )
   const winBreakdownFlow = useMemo(
-    // 20%抽選と状態遷移はApplicationユースケースへ集約します。
+    // 図柄の色に応じた昇格抽選と状態遷移はApplicationユースケースへ集約します。
     () => new WinBreakdownFlowUseCase(randomSource),
     [randomSource],
   )
@@ -88,6 +110,24 @@ export function useLotteryGame(
     () => parseProbabilityPercent(probabilityPercent),
     [probabilityPercent],
   )
+  const patternColorValidation = useMemo(
+    () => validatePatternColorSelection(patternColorSelection),
+    [patternColorSelection],
+  )
+  const patternColorError = useMemo(() => {
+    if (patternColorValidation.valid) return null
+
+    const messages: string[] = []
+    if (patternColorValidation.unassignedPatterns.length > 0) {
+      messages.push(`未割り当ての図柄: ${patternColorValidation.unassignedPatterns.join('・')}`)
+    }
+    if (patternColorValidation.colorsWithoutPatterns.length > 0) {
+      messages.push(
+        `図柄がない色: ${patternColorValidation.colorsWithoutPatterns.map((color) => colorLabels[color]).join('・')}`,
+      )
+    }
+    return messages.join(' / ')
+  }, [patternColorValidation])
   const continuationRate = useMemo(
     () => calculateContinuationRate(probabilityPercent, gameConfig.initialCount),
     [probabilityPercent],
@@ -106,7 +146,7 @@ export function useLotteryGame(
 
   const start = useCallback(async () => {
     if (status !== 'idle' || startingRef.current) return
-    const result = startGame.execute(probabilityPercent)
+    const result = startGame.execute(probabilityPercent, patternColorSelection)
     if (!result.ok) {
       setError(result.message)
       return
@@ -126,6 +166,7 @@ export function useLotteryGame(
     }
 
     sessionRef.current = result.session
+    setGameSettings(result.session.settings)
     gameAudio.beginCountdownSequence()
     setPresentationPath(null)
     setPresentationResult(null)
@@ -143,12 +184,13 @@ export function useLotteryGame(
     setCurrentIndex(0)
     setStatus('running')
     startingRef.current = false
-  }, [gameAudio, probabilityPercent, startGame, status])
+  }, [gameAudio, patternColorSelection, probabilityPercent, startGame, status])
 
   const reset = useCallback(() => {
     gameAudio.reset()
     startingRef.current = false
     sessionRef.current = null
+    setGameSettings(null)
     setStatus('idle')
     setError(null)
     setHolds(createHolds())
@@ -321,8 +363,13 @@ export function useLotteryGame(
   }, [gameAudio, winBreakdownFlow])
 
   const completeWinMovie = useCallback(() => {
-    // 動画のendedイベントを起点に、ここで初めて20%抽選と履歴反映を行います。
-    const transition = winBreakdownFlow.start(status, pendingWinRef.current, winRecords)
+    // 動画のendedイベントを起点に、ここで初めて色別確率による抽選と履歴反映を行います。
+    const transition = winBreakdownFlow.start(
+      status,
+      pendingWinRef.current,
+      winRecords,
+      sessionRef.current?.settings ?? null,
+    )
     if (!transition) return
 
     setWinMoviePath(null)
@@ -401,9 +448,21 @@ export function useLotteryGame(
     setError(null)
   }, [status])
 
+  const updatePatternColor = useCallback((
+    patternNumber: PatternNumber,
+    color: WinColor | null,
+  ) => {
+    if (status !== 'idle') return
+    // 図柄番号をキーに1色だけ保持するため、別色の選択時は自動的に割り当て先が移ります。
+    setPatternColorSelection((current) => ({ ...current, [patternNumber]: color }))
+    setError(null)
+  }, [status])
+
   return {
     status,
     probabilityPercent,
+    patternColorSelection,
+    patternColorError,
     error,
     holds,
     currentIndex,
@@ -415,9 +474,12 @@ export function useLotteryGame(
     winMultiplier,
     isWinBreakdownAudioComplete,
     winRecords,
-    canStart: status === 'idle' && probabilityValidation.valid,
+    // Resultにはゲーム開始時に固定した色・確率設定をそのまま渡します。
+    gameSettings,
+    canStart: status === 'idle' && probabilityValidation.valid && patternColorValidation.valid,
     continuationRatePercent: continuationRate.valid ? continuationRate.percent : null,
     updateProbability,
+    updatePatternColor,
     start,
     reset,
     completeWinMovie,

@@ -1,20 +1,32 @@
+import type {
+  PatternColorSelection,
+  PatternNumber,
+  WinColor,
+} from '../../../domain/game/Game'
+import { PatternColorSetting } from '../PatternColorSetting/PatternColorSetting'
 import { ProbabilitySetting } from '../ProbabilitySetting/ProbabilitySetting'
 
 type GameSettingsModalProps = {
   probabilityPercent: string
   continuationRatePercent: number | null
+  patternColorSelection: Readonly<PatternColorSelection>
+  patternColorError: string | null
   error: string | null
   canStart: boolean
   onProbabilityChange: (value: string) => void
+  onPatternColorChange: (patternNumber: PatternNumber, color: WinColor | null) => void
   onStart: () => void
 }
 
 export function GameSettingsModal({
   probabilityPercent,
   continuationRatePercent,
+  patternColorSelection,
+  patternColorError,
   error,
   canStart,
   onProbabilityChange,
+  onPatternColorChange,
   onStart,
 }: GameSettingsModalProps) {
   return (
@@ -26,10 +38,10 @@ export function GameSettingsModal({
         aria-labelledby="settings-modal-title"
         aria-describedby="settings-modal-description"
       >
-        <p className="section-index">GAME SETUP / PROBABILITY</p>
-        <h2 id="settings-modal-title">当選確率の設定</h2>
+        <p className="section-index">GAME SETUP / SETTINGS</p>
+        <h2 id="settings-modal-title">ゲーム設定</h2>
         <p id="settings-modal-description" className="settings-modal-description">
-          1回の抽選における当選確率を設定してください。
+          当選確率と、図柄ごとの色を設定してください。
         </p>
 
         <ProbabilitySetting
@@ -37,6 +49,12 @@ export function GameSettingsModal({
           disabled={false}
           error={error}
           onChange={onProbabilityChange}
+        />
+
+        <PatternColorSetting
+          value={patternColorSelection}
+          error={patternColorError}
+          onChange={onPatternColorChange}
         />
 
         <div className="continuation-rate" aria-live="polite">

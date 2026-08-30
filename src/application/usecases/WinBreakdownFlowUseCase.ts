@@ -1,6 +1,8 @@
 import {
   applyWinMultiplier,
   determineWinMultiplier,
+  getUpgradeProbabilityForPattern,
+  type GameSettings,
   type GameStatus,
   type PendingWin,
   type WinMultiplier,
@@ -22,7 +24,7 @@ export type CompleteWinBreakdownTransition = {
 }
 
 /**
- * 動画終了後の20%抽選、倍率確定、履歴反映データ生成、次抽選への遷移を管理します。
+ * 動画終了後の色別確率抽選、倍率確定、履歴反映データ生成、次抽選への遷移を管理します。
  * Reactや画像・音声を参照しないため、ゲーム進行ルールをPresentation層から分離できます。
  */
 export class WinBreakdownFlowUseCase {
@@ -36,12 +38,15 @@ export class WinBreakdownFlowUseCase {
     currentStatus: GameStatus,
     pendingWin: PendingWin | null,
     currentRecords: readonly WinRecord[],
+    settings: Readonly<GameSettings> | null,
   ): StartWinBreakdownTransition | null {
-    // 動画終了状態かつ未確定の当選がある場合だけ一度進め、重複通知を無視します。
-    if (currentStatus !== 'playingWinMovie' || !pendingWin) return null
+    // 動画終了状態、未確定の当選、開始時設定がすべて揃う場合だけ進めます。
+    if (currentStatus !== 'playingWinMovie' || !pendingWin || !settings) return null
 
-    // 乱数取得はポートへ委譲し、確率境界と倍率決定はDomain層へ委譲します。
-    const multiplier = determineWinMultiplier(this.randomSource.next())
+    // 元図柄に設定された色を経由して、そのゲーム中固定の昇格確率を解決します。
+    const upgradeProbability = getUpgradeProbabilityForPattern(settings, pendingWin.patternNumber)
+    // 乱数取得はポートへ、確率境界と倍率決定はDomain層へ委譲します。
+    const multiplier = determineWinMultiplier(this.randomSource.next(), upgradeProbability)
     return {
       status: 'revealingWinBreakdown',
       multiplier,

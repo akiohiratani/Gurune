@@ -18,7 +18,7 @@ function App() {
   const winPatternSelector = useMemo(() => new RandomWinPatternSelector(), [])
   // 動画候補の選択とパス解決を行うInfrastructure実装を、ゲーム進行へ注入します。
   const winMovieSelector = useMemo(() => new RandomWinMovieSelector(), [])
-  // 20%倍率抽選の乱数実装をInfrastructureからゲーム進行へ注入します。
+  // ゲーム開始時の確率シャッフルと、大当たり後の倍率抽選で共有する乱数実装です。
   const randomSource = useMemo(() => new MathRandomSource(), [])
   const gameAudio = useMemo(() => new GameAudioService(new BrowserAudioPlayer()), [])
   const game = useLotteryGame(
@@ -34,7 +34,13 @@ function App() {
     : null
 
   if (game.status === 'finished') {
-    return <ResultScreen records={game.winRecords} onReplay={game.reset} />
+    return (
+      <ResultScreen
+        records={game.winRecords}
+        settings={game.gameSettings}
+        onReplay={game.reset}
+      />
+    )
   }
 
   return (
@@ -43,9 +49,12 @@ function App() {
         <GameSettingsModal
           probabilityPercent={game.probabilityPercent}
           continuationRatePercent={game.continuationRatePercent}
+          patternColorSelection={game.patternColorSelection}
+          patternColorError={game.patternColorError}
           error={game.error}
           canStart={game.canStart}
           onProbabilityChange={game.updateProbability}
+          onPatternColorChange={game.updatePatternColor}
           onStart={game.start}
         />
       )}
