@@ -212,7 +212,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
-  background: var(--coral);
+  background: var(--coral) url('/background.png') center / cover no-repeat fixed;
 }
 
 .section-index {
@@ -411,7 +411,7 @@
 .result-screen {
   min-height: 100vh;
   padding: clamp(28px, 5vw, 72px);
-  background: var(--coral);
+  background: var(--coral) url('/background.png') center / cover no-repeat fixed;
 }
 
 .result-heading {
